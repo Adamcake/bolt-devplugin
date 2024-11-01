@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <script>
+    window.addEventListener('message', async (event) => {
+      if (typeof(event.data) !== "object") return;
+
+      if (event.data.type === "pluginMessage") {
+        if (typeof(event.data.content) !== "object") return;
+        document.getElementById("text").innerText = (new TextDecoder()).decode(event.data.content);
+        fetch("https://bolt-api/send-message", {method: "POST", body: "456xyz"});
+      }
+
+      if (event.data.type === "screenCapture") {
+        document.getElementById("text").innerText = `capture ${event.data.width}x${event.data.height}`;
+      }
+    });
+  </script>
+  <head>
+    <style>
+      body {
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="text">Hello World</p>
+  </body>
+</html>
