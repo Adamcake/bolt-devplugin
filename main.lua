@@ -37,6 +37,7 @@ bolt.onswapbuffers(function (event)
   capturepending = false
   if capturing then
     local browser = bolt.createbrowser(1000, 750, "file://app/index.html")
+    browser:showdevtools()
     browser:oncloserequest(function ()
       browser:close()
     end)
@@ -102,7 +103,7 @@ bolt.onrender3d(function (event)
   end
   message:writeinteger(event:animated() and 1 or 0, 3, 1)
   message:writeinteger(vertexcount, 4, 4)
-  message:writeinteger(imagecount, 4, 4)
+  message:writeinteger(imagecount, 8, 4)
   message:writeinteger(animationcount, 12, 4)
   message:writenumber(mm1, 16)
   message:writenumber(mm2, 24)
