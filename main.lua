@@ -11,6 +11,7 @@ local capturebuttonclickx, capturebuttonclicky
 local capturepending = false
 local capturing = false
 local capturebrowser
+local captureestimate = 0
 local cfg = {}
 
 (function ()
@@ -33,10 +34,13 @@ end
 capturebuttonwindow = bolt.createwindow(cfg.buttonx or 20, cfg.buttony or 20, buttonwidth, buttonheight)
 
 bolt.onswapbuffers(function (event)
+  if capturing then
+    capturebrowser:sendmessage("\x00\x00\x00\x00")
+  end
   capturing = capturepending
   capturepending = false
   if capturing then
-    local browser = bolt.createbrowser(1000, 750, "file://app/index.html")
+    local browser = bolt.createbrowser(1000, 750, string.format("file://app/index.html?n=%s", tostring(captureestimate)))
     browser:showdevtools()
     browser:oncloserequest(function ()
       browser:close()
@@ -46,15 +50,18 @@ bolt.onswapbuffers(function (event)
     end)
     capturebrowser = browser
   end
+  captureestimate = 0
 end)
 
 bolt.onrender2d(function (event)
+  captureestimate = captureestimate + event:vertexcount()
   if not capturing then return end
   -- send all the details to the browser using capturebrowser:sendmessage
   -- remember to differentiate between normal UI and the minimap by checking event:isminimap()
 end)
 
 bolt.onrender3d(function (event)
+  captureestimate = captureestimate + event:vertexcount()
   if not capturing then return end
 
   local vertexcount = event:vertexcount()
@@ -95,13 +102,11 @@ bolt.onrender3d(function (event)
 
   local messagesize = 16 + (16 * 8 * 2) + (vertexcount * 64) + (imagecount * 8) + rgbabytesinmessage + (16 * 8 * animationcount) + (8 * animationcount)
   local message = bolt.createbuffer(messagesize)
-  message:writestring("r3d", 0)
   if event:animated() then
-    message:writeinteger(1, 3, 1)
+    message:writeinteger(2, 0, 4)
   else
-    message:writeinteger(0, 3, 1)
+    message:writeinteger(1, 0, 4)
   end
-  message:writeinteger(event:animated() and 1 or 0, 3, 1)
   message:writeinteger(vertexcount, 4, 4)
   message:writeinteger(imagecount, 8, 4)
   message:writeinteger(animationcount, 12, 4)
