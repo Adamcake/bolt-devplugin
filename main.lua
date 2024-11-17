@@ -10,6 +10,7 @@ local capturebuttonheld = false
 local capturebuttonclickx, capturebuttonclicky
 local capturepending = false
 local capturing = false
+local capturetextures = {}
 local capturebrowser
 local captureestimate = 0
 local cfg = {}
@@ -39,6 +40,7 @@ bolt.onswapbuffers(function (event)
   end
   capturing = capturepending
   capturepending = false
+  capturetextures = {}
   if capturing then
     local browser = bolt.createbrowser(1000, 750, string.format("file://app/index.html?n=%s", tostring(captureestimate)))
     browser:showdevtools()
@@ -66,6 +68,7 @@ bolt.onrender3d(function (event)
 
   local vertexcount = event:vertexcount()
   local animated = event:animated()
+  local textureid = event:textureid()
   local animations = {}
   local animationcount = 0
   local mm1,  mm2,  mm3,  mm4,
@@ -77,6 +80,20 @@ bolt.onrender3d(function (event)
         pm9,  pm10, pm11, pm12,
         pm13, pm14, pm15, pm16 = event:viewprojmatrix():get()
   
+  if capturetextures[textureid] == nil then
+    capturetextures[textureid] = true
+    local w, h = event:texturesize()
+    local message = bolt.createbuffer(16 + (w * h * 4))
+    message:setuint8(0, 1)
+    message:setuint32(4, textureid)
+    message:setuint32(8, w)
+    message:setuint32(12, h)
+    for i = 1, h do
+      message:setstring(16 + (w * 4 * (i - 1)), event:texturedata(0, i - 1, w * 4))
+    end
+    capturebrowser:sendmessage(message)
+  end
+  
   for i = 1, vertexcount do
     local atlasmeta = event:vertexmeta(i)
     local bone = event:vertexbone(i)
@@ -86,48 +103,49 @@ bolt.onrender3d(function (event)
     end
   end
 
-  local messagesize = 16 + (16 * 8 * 2) + (vertexcount * 64) + (136 * animationcount)
+  local messagesize = 144 + (vertexcount * 56) + (136 * animationcount)
   local message = bolt.createbuffer(messagesize)
   if event:animated() then
-    message:setuint8(0, 2)
+    message:setuint8(0, 3)
   else
-    message:setuint8(0, 1)
+    message:setuint8(0, 2)
   end
   message:setuint32(4, vertexcount)
+  message:setuint32(8, textureid)
   message:setuint32(12, animationcount)
-  message:setfloat64(16, mm1)
-  message:setfloat64(24, mm2)
-  message:setfloat64(32, mm3)
-  message:setfloat64(40, mm4)
-  message:setfloat64(48, mm5)
-  message:setfloat64(56, mm6)
-  message:setfloat64(64, mm7)
-  message:setfloat64(72, mm8)
-  message:setfloat64(80, mm9)
-  message:setfloat64(88, mm10)
-  message:setfloat64(96, mm11)
-  message:setfloat64(104, mm12)
-  message:setfloat64(112, mm13)
-  message:setfloat64(120, mm14)
-  message:setfloat64(128, mm15)
-  message:setfloat64(136, mm16)
-  message:setfloat64(144, pm1)
-  message:setfloat64(152, pm2)
-  message:setfloat64(160, pm3)
-  message:setfloat64(168, pm4)
-  message:setfloat64(176, pm5)
-  message:setfloat64(184, pm6)
-  message:setfloat64(192, pm7)
-  message:setfloat64(200, pm8)
-  message:setfloat64(208, pm9)
-  message:setfloat64(216, pm10)
-  message:setfloat64(224, pm11)
-  message:setfloat64(232, pm12)
-  message:setfloat64(240, pm13)
-  message:setfloat64(248, pm14)
-  message:setfloat64(256, pm15)
-  message:setfloat64(264, pm16)
-  local cursor = 272
+  message:setfloat32(16, mm1)
+  message:setfloat32(20, mm2)
+  message:setfloat32(24, mm3)
+  message:setfloat32(28, mm4)
+  message:setfloat32(32, mm5)
+  message:setfloat32(36, mm6)
+  message:setfloat32(40, mm7)
+  message:setfloat32(44, mm8)
+  message:setfloat32(48, mm9)
+  message:setfloat32(52, mm10)
+  message:setfloat32(56, mm11)
+  message:setfloat32(60, mm12)
+  message:setfloat32(64, mm13)
+  message:setfloat32(68, mm14)
+  message:setfloat32(72, mm15)
+  message:setfloat32(76, mm16)
+  message:setfloat32(80, pm1)
+  message:setfloat32(84, pm2)
+  message:setfloat32(88, pm3)
+  message:setfloat32(92, pm4)
+  message:setfloat32(96, pm5)
+  message:setfloat32(100, pm6)
+  message:setfloat32(104, pm7)
+  message:setfloat32(108, pm8)
+  message:setfloat32(112, pm9)
+  message:setfloat32(116, pm10)
+  message:setfloat32(120, pm11)
+  message:setfloat32(124, pm12)
+  message:setfloat32(128, pm13)
+  message:setfloat32(132, pm14)
+  message:setfloat32(136, pm15)
+  message:setfloat32(140, pm16)
+  local cursor = 144
 
   for i = 1, vertexcount do
     local x, y, z = event:vertexxyz(i):get()
@@ -136,21 +154,21 @@ bolt.onrender3d(function (event)
     local u, v = event:vertexuv(i)
     local cr, cg, cb, ca = event:vertexcolour(i)
     local imgx, imgy, imgw, imgh = event:atlasxywh(atlasmeta)
-    message:setint16(cursor, x)
-    message:setint16(cursor + 2, y)
-    message:setint16(cursor + 4, z)
-    message:setint16(cursor + 6, bone)
-    message:setfloat64(cursor + 8, u)
-    message:setfloat64(cursor + 16, v)
-    message:setuint16(cursor + 24, imgw)
-    message:setuint16(cursor + 26, imgh)
-    message:setuint16(cursor + 28, imgw)
-    message:setuint16(cursor + 30, imgh)
-    message:setfloat64(cursor + 32, cr)
-    message:setfloat64(cursor + 40, cg)
-    message:setfloat64(cursor + 48, cb)
-    message:setfloat64(cursor + 56, ca)
-    cursor = cursor + 64
+    message:setfloat32(cursor     , x)
+    message:setfloat32(cursor +  4, y)
+    message:setfloat32(cursor +  8, z)
+    message:setfloat32(cursor + 12, bone)
+    message:setfloat32(cursor + 16, u)
+    message:setfloat32(cursor + 20, v)
+    message:setfloat32(cursor + 24, imgx)
+    message:setfloat32(cursor + 28, imgy)
+    message:setfloat32(cursor + 32, imgw)
+    message:setfloat32(cursor + 36, imgh)
+    message:setfloat32(cursor + 40, cr)
+    message:setfloat32(cursor + 44, cg)
+    message:setfloat32(cursor + 48, cb)
+    message:setfloat32(cursor + 52, ca)
+    cursor = cursor + 56
   end
   for bone, transform in pairs(animations) do
     local t1,  t2,  t3,  t4,

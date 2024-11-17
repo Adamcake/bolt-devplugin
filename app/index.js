@@ -1,20 +1,35 @@
-const vertexShaderSource3d = `#version 330 core
-in ivec3 pos;
-uniform mat4 animmatrix;
+const vertexShaderSource3d = `#version 300 es
+layout (location = 0) in highp vec4 xyz_and_bone;
+layout (location = 1) in highp vec2 in_uv;
+layout (location = 2) in highp vec4 in_image_xywh;
+layout (location = 3) in highp vec4 in_rgba;
+out highp vec4 rgba;
+out highp vec2 uv;
+out highp vec4 image_xywh;
 uniform mat4 modelmatrix;
 uniform mat4 viewprojmatrix;
+uniform highp vec2 atlas_wh;
 void main() {
-    gl_Position = vec4(pos, 1.0) * animmatrix * modelmatrix * viewprojmatrix;
+    rgba = in_rgba;
+    uv = in_uv;
+    image_xywh = vec4(
+        in_image_xywh.s / atlas_wh.s,
+        in_image_xywh.t / atlas_wh.t,
+        in_image_xywh.p / atlas_wh.s,
+        in_image_xywh.q / atlas_wh.t
+    );
+    gl_Position = viewprojmatrix * modelmatrix * vec4(xyz_and_bone.xyz, 1.0);
 }
 `;
 
-const fragmentShaderSource3d = `#version 330 core
-in vec4 rgba;
-in vec2 uv;
-layout (location = 0) out vec4 col;
+const fragmentShaderSource3d = `#version 300 es
+in highp vec4 rgba;
+in highp vec2 uv;
+in highp vec4 image_xywh;
+out highp vec4 col;
 uniform sampler2D tex;
 void main() {
-    col = texture(tex, uv) * rgba;
+    col = texture(tex, vec2( image_xywh.x + (fract(uv.x) * image_xywh.z), image_xywh.y + (fract(uv.y) * image_xywh.w) )) * rgba;
 }
 `;
 
@@ -25,10 +40,16 @@ let receivedVertices = 0;
 let done = false;
 let pending = [];
 
+let textures = {};
 let entities = [];
 
 let gl = null;
 let canvas = null;
+let program3d = null;
+let program3d_uModelMatrix;
+let program3d_uViewProjMatrix;
+let program3d_uAtlasWH;
+let program3d_uTex;
 
 const redraw = () => {
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -37,7 +58,26 @@ const redraw = () => {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     if (done) {
-        // TODO: render something useful...
+        gl.enable(gl.DEPTH_TEST);
+        for (entity of entities.filter((x) => x.type === 'render3d')) {
+            const tex = textures[entity.textureId];
+            gl.useProgram(program3d);
+            gl.uniformMatrix4fv(program3d_uModelMatrix, false, entity.modelMatrix);
+            gl.uniformMatrix4fv(program3d_uViewProjMatrix, false, entity.viewProjMatrix);
+            gl.uniform2fv(program3d_uAtlasWH, [tex.width, tex.height]);
+            gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+            gl.uniform1i(program3d_uTex, 0); // because we activated TEXTURE0 earlier
+            gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 56, 0);
+            gl.enableVertexAttribArray(1);
+            gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 56, 16);
+            gl.enableVertexAttribArray(2);
+            gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 56, 24);
+            gl.enableVertexAttribArray(3);
+            gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 56, 40);
+            gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
+        }
     } else {
         const clearForeground = () => {
             gl.clearColor(0.525, 0.968, 0.495, 1.0);
@@ -76,19 +116,52 @@ const redraw = () => {
 
 const handleMessage = (message) => {
     const arr = new DataView(message);
-    const msgtype = arr.getInt32(0, true);
+    const msgtype = arr.getUint32(0, true);
     switch (msgtype) {
         case 0:
             done = true;
             redraw();
             break;
         case 1:
+            const textureid = arr.getUint32(4, true);
+            const width = arr.getUint32(8, true);
+            const height = arr.getUint32(12, true);
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(message, 16, width * height * 4));
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            textures[textureid] = {
+                texture,
+                width,
+                height,
+            };
+            break;
         case 2:
-            animated = msgtype === 2;
-            const vertexCount = arr.getInt32(4, true);
-            const imageCount = arr.getInt32(8, true);
-            const animationCount = arr.getInt32(12, true);
-            // TODO: process 3D model, add to entities
+        case 3:
+            const animated = msgtype === 3;
+            const vertexCount = arr.getUint32(4, true);
+            const textureId = arr.getUint32(8, true);
+            const animationCount = arr.getUint32(12, true);
+            const modelMatrix = new Float32Array(16);
+            modelMatrix.set(new Float32Array(message, 16, 16));
+            const viewProjMatrix = new Float32Array(16);
+            viewProjMatrix.set(new Float32Array(message, 80, 16));
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+            const bufferData = new DataView(message, 144, vertexCount * 56);
+            gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+            entities.push({
+                type: 'render3d',
+                animated,
+                textureId,
+                vbo,
+                vertexCount,
+                modelMatrix,
+                viewProjMatrix,
+            });
             receivedVertices += vertexCount;
             redraw();
             break;
@@ -96,16 +169,28 @@ const handleMessage = (message) => {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
-    canvas = document.createElement("canvas");
-    gl = canvas.getContext("webgl");
+    canvas = document.createElement('canvas');
+    gl = canvas.getContext('webgl2');
 
     const vertexShader3d = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vertexShader3d, vertexShaderSource3d);
     gl.compileShader(vertexShader3d);
+    if (!gl.getShaderParameter(vertexShader3d, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(vertexShader3d);
+        console.log(`vertex shader compilation error:\n${log}`);
+        return;
+    }
+
     const fragmentShader3d = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fragmentShader3d, fragmentShaderSource3d);
     gl.compileShader(fragmentShader3d);
-    const program3d = gl.createProgram();
+    if (!gl.getShaderParameter(fragmentShader3d, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(fragmentShader3d);
+        console.log(`fragment shader compilation error:\n${log}`);
+        return;
+    }
+
+    program3d = gl.createProgram();
     gl.attachShader(program3d, vertexShader3d);
     gl.attachShader(program3d, fragmentShader3d);
     gl.linkProgram(program3d);
@@ -114,23 +199,33 @@ window.addEventListener('DOMContentLoaded', () => {
     gl.deleteShader(vertexShader3d);
     gl.deleteShader(fragmentShader3d);
 
+    gl.useProgram(program3d);
+    program3d_uModelMatrix = gl.getUniformLocation(program3d, 'modelmatrix');
+    program3d_uViewProjMatrix = gl.getUniformLocation(program3d, 'viewprojmatrix');
+    program3d_uAtlasWH = gl.getUniformLocation(program3d, 'atlas_wh');
+    program3d_uTex = gl.getUniformLocation(program3d, 'tex');
+
+    gl.activeTexture(gl.TEXTURE0);
     gl.enable(gl.SCISSOR_TEST);
-    gl.enable(gl.CULL_FACE);
+    gl.disable(gl.CULL_FACE);
     gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthFunc(gl.LEQUAL);
 
     for (i in pending) {
         handleMessage(pending[i]);
     }
     pending = [];
 
-    const onresize = () => {
+    const resizecanvas = () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         redraw();
     };
     document.body.appendChild(canvas);
-    window.addEventListener("resize", onresize);
-    onresize();
+    window.addEventListener('resize', resizecanvas);
+    resizecanvas();
 });
 
 window.addEventListener('message', async (event) => {
