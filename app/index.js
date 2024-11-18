@@ -22,6 +22,31 @@ void main() {
 }
 `;
 
+const vertexShaderSourceAnim3d = `#version 300 es
+layout (location = 0) in highp vec4 xyz_and_bone;
+layout (location = 1) in highp vec2 in_uv;
+layout (location = 2) in highp vec4 in_image_xywh;
+layout (location = 3) in highp vec4 in_rgba;
+out highp vec4 rgba;
+out highp vec2 uv;
+out highp vec4 image_xywh;
+uniform mat4 modelmatrix;
+uniform mat4 viewprojmatrix;
+uniform highp vec2 atlas_wh;
+uniform mat4 anim[129];
+void main() {
+    rgba = in_rgba;
+    uv = in_uv;
+    image_xywh = vec4(
+        in_image_xywh.s / atlas_wh.s,
+        in_image_xywh.t / atlas_wh.t,
+        in_image_xywh.p / atlas_wh.s,
+        in_image_xywh.q / atlas_wh.t
+    );
+    gl_Position = viewprojmatrix * modelmatrix * anim[uint(xyz_and_bone.w)] * vec4(xyz_and_bone.xyz, 1.0);
+}
+`;
+
 const fragmentShaderSource3d = `#version 300 es
 in highp vec4 rgba;
 in highp vec2 uv;
@@ -51,6 +76,13 @@ let program3d_uViewProjMatrix;
 let program3d_uAtlasWH;
 let program3d_uTex;
 
+let programAnim3d = null;
+let programAnim3d_uModelMatrix;
+let programAnim3d_uViewProjMatrix;
+let programAnim3d_uAtlasWH;
+let programAnim3d_uTex;
+let programAnim3d_uAnim = [];
+
 const redraw = () => {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.scissor(0, 0, canvas.width, canvas.height);
@@ -61,20 +93,21 @@ const redraw = () => {
         gl.enable(gl.DEPTH_TEST);
         for (entity of entities.filter((x) => x.type === 'render3d')) {
             const tex = textures[entity.textureId];
-            gl.useProgram(program3d);
-            gl.uniformMatrix4fv(program3d_uModelMatrix, false, entity.modelMatrix);
-            gl.uniformMatrix4fv(program3d_uViewProjMatrix, false, entity.viewProjMatrix);
-            gl.uniform2fv(program3d_uAtlasWH, [tex.width, tex.height]);
+            gl.useProgram(entity.animated ? programAnim3d : program3d);
+            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix, false, entity.modelMatrix);
+            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uViewProjMatrix : program3d_uViewProjMatrix, false, entity.viewProjMatrix);
+            gl.uniform2fv(entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH, [tex.width, tex.height]);
             gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-            gl.uniform1i(program3d_uTex, 0); // because we activated TEXTURE0 earlier
+            gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
+            if (entity.animated) {
+                for (bone in entity.animations) {
+                    gl.uniformMatrix4fv(programAnim3d_uAnim[bone], false, entity.animations[bone]);
+                }
+            }
             gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
-            gl.enableVertexAttribArray(0);
             gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 56, 0);
-            gl.enableVertexAttribArray(1);
             gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 56, 16);
-            gl.enableVertexAttribArray(2);
             gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 56, 24);
-            gl.enableVertexAttribArray(3);
             gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 56, 40);
             gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
         }
@@ -153,6 +186,14 @@ const handleMessage = (message) => {
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
             const bufferData = new DataView(message, 144, vertexCount * 56);
             gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+            let animations = {};
+            for (let i = 0; i < animationCount; i += 1) {
+                const startOffset = 144 + (vertexCount * 56) + (i * 72);
+                const bone = arr.getUint16(startOffset, true);
+                const matrix = new Float32Array(16);
+                matrix.set(new Float32Array(message, startOffset + 8, 16));
+                animations[bone] = matrix;
+            }
             entities.push({
                 type: 'render3d',
                 animated,
@@ -161,6 +202,7 @@ const handleMessage = (message) => {
                 vertexCount,
                 modelMatrix,
                 viewProjMatrix,
+                animations,
             });
             receivedVertices += vertexCount;
             redraw();
@@ -190,21 +232,50 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    const vertexShaderAnim3d = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShaderAnim3d, vertexShaderSourceAnim3d);
+    gl.compileShader(vertexShaderAnim3d);
+    if (!gl.getShaderParameter(vertexShaderAnim3d, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(vertexShaderAnim3d);
+        console.log(`vertex anim shader compilation error:\n${log}`);
+        return;
+    }
+
     program3d = gl.createProgram();
     gl.attachShader(program3d, vertexShader3d);
     gl.attachShader(program3d, fragmentShader3d);
     gl.linkProgram(program3d);
     gl.detachShader(program3d, vertexShader3d);
     gl.detachShader(program3d, fragmentShader3d);
-    gl.deleteShader(vertexShader3d);
-    gl.deleteShader(fragmentShader3d);
-
-    gl.useProgram(program3d);
     program3d_uModelMatrix = gl.getUniformLocation(program3d, 'modelmatrix');
     program3d_uViewProjMatrix = gl.getUniformLocation(program3d, 'viewprojmatrix');
     program3d_uAtlasWH = gl.getUniformLocation(program3d, 'atlas_wh');
     program3d_uTex = gl.getUniformLocation(program3d, 'tex');
 
+    programAnim3d = gl.createProgram();
+    gl.attachShader(programAnim3d, vertexShaderAnim3d);
+    gl.attachShader(programAnim3d, fragmentShader3d);
+    gl.linkProgram(programAnim3d);
+    gl.detachShader(programAnim3d, vertexShaderAnim3d);
+    gl.detachShader(programAnim3d, fragmentShader3d);
+    programAnim3d_uModelMatrix = gl.getUniformLocation(programAnim3d, 'modelmatrix');
+    programAnim3d_uViewProjMatrix = gl.getUniformLocation(programAnim3d, 'viewprojmatrix');
+    programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, 'atlas_wh');
+    programAnim3d_uTex = gl.getUniformLocation(programAnim3d, 'tex');
+    for (let i = 0; i < 129; i += 1) {
+        programAnim3d_uAnim.push(gl.getUniformLocation(programAnim3d, `anim[${i}]`));
+    }
+
+    gl.deleteShader(vertexShader3d);
+    gl.deleteShader(fragmentShader3d);
+    gl.deleteShader(vertexShaderAnim3d);
+
+    gl.useProgram(program3d);
+    gl.enableVertexAttribArray(0);
+    gl.enableVertexAttribArray(1);
+    gl.enableVertexAttribArray(2);
+    gl.enableVertexAttribArray(3);
+    
     gl.activeTexture(gl.TEXTURE0);
     gl.enable(gl.SCISSOR_TEST);
     gl.disable(gl.CULL_FACE);
