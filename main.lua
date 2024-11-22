@@ -93,17 +93,12 @@ bolt.onrender3d(function (event)
     end
     capturebrowser:sendmessage(message)
   end
-  
-  for i = 1, vertexcount do
-    local atlasmeta = event:vertexmeta(i)
-    local bone = event:vertexbone(i)
-    if animated and animations[bone] == nil then
-      animations[bone] = event:boneanimation(bone)
-      animationcount = animationcount + 1
-    end
-  end
 
-  local messagesize = 144 + (vertexcount * 56) + (72 * animationcount)
+  local vertexmsgsize = 56
+  if event:animated() then
+    vertexmsgsize = 120
+  end
+  local messagesize = 144 + (vertexcount * vertexmsgsize)
   local message = bolt.createbuffer(messagesize)
   if event:animated() then
     message:setuint8(0, 3)
@@ -112,7 +107,7 @@ bolt.onrender3d(function (event)
   end
   message:setuint32(4, vertexcount)
   message:setuint32(8, textureid)
-  message:setuint32(12, animationcount)
+  -- 4 unused bytes
   message:setfloat32(16, mm1)
   message:setfloat32(20, mm2)
   message:setfloat32(24, mm3)
@@ -149,7 +144,6 @@ bolt.onrender3d(function (event)
 
   for i = 1, vertexcount do
     local x, y, z = event:vertexxyz(i):get()
-    local bone = event:vertexbone(i)
     local atlasmeta = event:vertexmeta(i)
     local u, v = event:vertexuv(i)
     local cr, cg, cb, ca = event:vertexcolour(i)
@@ -157,7 +151,7 @@ bolt.onrender3d(function (event)
     message:setfloat32(cursor     , x)
     message:setfloat32(cursor +  4, y)
     message:setfloat32(cursor +  8, z)
-    message:setfloat32(cursor + 12, bone)
+    -- 4 unused bytes
     message:setfloat32(cursor + 16, u)
     message:setfloat32(cursor + 20, v)
     message:setfloat32(cursor + 24, imgx)
@@ -168,32 +162,29 @@ bolt.onrender3d(function (event)
     message:setfloat32(cursor + 44, cg)
     message:setfloat32(cursor + 48, cb)
     message:setfloat32(cursor + 52, ca)
-    cursor = cursor + 56
-  end
-  for bone, transform in pairs(animations) do
-    local t1,  t2,  t3,  t4,
-          t5,  t6,  t7,  t8,
-          t9,  t10, t11, t12,
-          t13, t14, t15, t16 = transform:get()
-    message:setuint16(cursor, bone)
-    -- 6 unused bytes
-    message:setfloat32(cursor + 8, t1)
-    message:setfloat32(cursor + 12, t2)
-    message:setfloat32(cursor + 16, t3)
-    message:setfloat32(cursor + 20, t4)
-    message:setfloat32(cursor + 24, t5)
-    message:setfloat32(cursor + 28, t6)
-    message:setfloat32(cursor + 32, t7)
-    message:setfloat32(cursor + 36, t8)
-    message:setfloat32(cursor + 40, t9)
-    message:setfloat32(cursor + 44, t10)
-    message:setfloat32(cursor + 48, t11)
-    message:setfloat32(cursor + 52, t12)
-    message:setfloat32(cursor + 56, t13)
-    message:setfloat32(cursor + 60, t14)
-    message:setfloat32(cursor + 64, t15)
-    message:setfloat32(cursor + 68, t16)
-    cursor = cursor + 72
+    if event:animated() then
+      local tm1,  tm2,  tm3,  tm4,
+            tm5,  tm6,  tm7,  tm8,
+            tm9,  tm10, tm11, tm12,
+            tm13, tm14, tm15, tm16 = event:vertexanimation(i):get()
+      message:setfloat32(cursor + 56, tm1)
+      message:setfloat32(cursor + 60, tm2)
+      message:setfloat32(cursor + 64, tm3)
+      message:setfloat32(cursor + 68, tm4)
+      message:setfloat32(cursor + 72, tm5)
+      message:setfloat32(cursor + 76, tm6)
+      message:setfloat32(cursor + 80, tm7)
+      message:setfloat32(cursor + 84, tm8)
+      message:setfloat32(cursor + 88, tm9)
+      message:setfloat32(cursor + 92, tm10)
+      message:setfloat32(cursor + 96, tm11)
+      message:setfloat32(cursor + 100, tm12)
+      message:setfloat32(cursor + 104, tm13)
+      message:setfloat32(cursor + 108, tm14)
+      message:setfloat32(cursor + 112, tm15)
+      message:setfloat32(cursor + 116, tm16)
+    end
+    cursor = cursor + vertexmsgsize
   end
   capturebrowser:sendmessage(message)
 end)

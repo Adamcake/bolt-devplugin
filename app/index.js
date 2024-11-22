@@ -27,13 +27,13 @@ layout (location = 0) in highp vec4 xyz_and_bone;
 layout (location = 1) in highp vec2 in_uv;
 layout (location = 2) in highp vec4 in_image_xywh;
 layout (location = 3) in highp vec4 in_rgba;
+layout (location = 4) in highp mat4 anim;
 out highp vec4 rgba;
 out highp vec2 uv;
 out highp vec4 image_xywh;
 uniform mat4 modelmatrix;
 uniform mat4 viewprojmatrix;
 uniform highp vec2 atlas_wh;
-uniform mat4 anim[129];
 void main() {
     rgba = in_rgba;
     uv = in_uv;
@@ -43,7 +43,7 @@ void main() {
         in_image_xywh.p / atlas_wh.s,
         in_image_xywh.q / atlas_wh.t
     );
-    gl_Position = viewprojmatrix * modelmatrix * anim[uint(xyz_and_bone.w)] * vec4(xyz_and_bone.xyz, 1.0);
+    gl_Position = viewprojmatrix * modelmatrix * anim * vec4(xyz_and_bone.xyz, 1.0);
 }
 `;
 
@@ -92,6 +92,7 @@ const redraw = () => {
     if (done) {
         gl.enable(gl.DEPTH_TEST);
         for (entity of entities.filter((x) => x.type === 'render3d')) {
+            const step = entity.animated ? 120 : 56;
             const tex = textures[entity.textureId];
             gl.useProgram(entity.animated ? programAnim3d : program3d);
             gl.uniformMatrix4fv(entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix, false, entity.modelMatrix);
@@ -99,16 +100,17 @@ const redraw = () => {
             gl.uniform2fv(entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH, [tex.width, tex.height]);
             gl.bindTexture(gl.TEXTURE_2D, tex.texture);
             gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
-            if (entity.animated) {
-                for (bone in entity.animations) {
-                    gl.uniformMatrix4fv(programAnim3d_uAnim[bone], false, entity.animations[bone]);
-                }
-            }
             gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
-            gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 56, 0);
-            gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 56, 16);
-            gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 56, 24);
-            gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 56, 40);
+            gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
+            gl.vertexAttribPointer(1, 2, gl.FLOAT, false, step, 16);
+            gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 24);
+            gl.vertexAttribPointer(3, 4, gl.FLOAT, false, step, 40);
+            if (entity.animated) {
+                gl.vertexAttribPointer(4, 4, gl.FLOAT, false, step, 56);
+                gl.vertexAttribPointer(5, 4, gl.FLOAT, false, step, 72);
+                gl.vertexAttribPointer(6, 4, gl.FLOAT, false, step, 88);
+                gl.vertexAttribPointer(7, 4, gl.FLOAT, false, step, 104);
+            }
             gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
         }
     } else {
@@ -175,25 +177,17 @@ const handleMessage = (message) => {
         case 2:
         case 3:
             const animated = msgtype === 3;
+            const vertexMsgSize = animated ? 120 : 56;
             const vertexCount = arr.getUint32(4, true);
             const textureId = arr.getUint32(8, true);
-            const animationCount = arr.getUint32(12, true);
             const modelMatrix = new Float32Array(16);
             modelMatrix.set(new Float32Array(message, 16, 16));
             const viewProjMatrix = new Float32Array(16);
             viewProjMatrix.set(new Float32Array(message, 80, 16));
             const vbo = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-            const bufferData = new DataView(message, 144, vertexCount * 56);
+            const bufferData = new DataView(message, 144, vertexCount * vertexMsgSize);
             gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
-            let animations = {};
-            for (let i = 0; i < animationCount; i += 1) {
-                const startOffset = 144 + (vertexCount * 56) + (i * 72);
-                const bone = arr.getUint16(startOffset, true);
-                const matrix = new Float32Array(16);
-                matrix.set(new Float32Array(message, startOffset + 8, 16));
-                animations[bone] = matrix;
-            }
             entities.push({
                 type: 'render3d',
                 animated,
@@ -202,7 +196,6 @@ const handleMessage = (message) => {
                 vertexCount,
                 modelMatrix,
                 viewProjMatrix,
-                animations,
             });
             receivedVertices += vertexCount;
             redraw();
@@ -271,10 +264,13 @@ window.addEventListener('DOMContentLoaded', () => {
     gl.deleteShader(vertexShaderAnim3d);
 
     gl.useProgram(program3d);
-    gl.enableVertexAttribArray(0);
-    gl.enableVertexAttribArray(1);
-    gl.enableVertexAttribArray(2);
-    gl.enableVertexAttribArray(3);
+    for (let i = 0; i < 4; i += 1) {
+        gl.enableVertexAttribArray(i);
+    }
+    gl.useProgram(programAnim3d);
+    for (let i = 0; i < 8; i += 1) {
+        gl.enableVertexAttribArray(i);
+    }
     
     gl.activeTexture(gl.TEXTURE0);
     gl.enable(gl.SCISSOR_TEST);
