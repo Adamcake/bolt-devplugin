@@ -70,6 +70,8 @@ let entities = [];
 
 let gl = null;
 let canvas = null;
+let maxAttribCount;
+
 let program3d = null;
 let program3d_uModelMatrix;
 let program3d_uViewProjMatrix;
@@ -81,7 +83,6 @@ let programAnim3d_uModelMatrix;
 let programAnim3d_uViewProjMatrix;
 let programAnim3d_uAtlasWH;
 let programAnim3d_uTex;
-let programAnim3d_uAnim = [];
 
 const redraw = () => {
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -101,6 +102,9 @@ const redraw = () => {
             gl.bindTexture(gl.TEXTURE_2D, tex.texture);
             gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
             gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
+            for (let i = 0; i < maxAttribCount; i += 1) {
+                i < (entity.animated ? 8 : 4) ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+            }
             gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
             gl.vertexAttribPointer(1, 2, gl.FLOAT, false, step, 16);
             gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 24);
@@ -206,6 +210,7 @@ const handleMessage = (message) => {
 window.addEventListener('DOMContentLoaded', () => {
     canvas = document.createElement('canvas');
     gl = canvas.getContext('webgl2');
+    maxAttribCount = gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
 
     const vertexShader3d = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vertexShader3d, vertexShaderSource3d);
@@ -255,22 +260,10 @@ window.addEventListener('DOMContentLoaded', () => {
     programAnim3d_uViewProjMatrix = gl.getUniformLocation(programAnim3d, 'viewprojmatrix');
     programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, 'atlas_wh');
     programAnim3d_uTex = gl.getUniformLocation(programAnim3d, 'tex');
-    for (let i = 0; i < 129; i += 1) {
-        programAnim3d_uAnim.push(gl.getUniformLocation(programAnim3d, `anim[${i}]`));
-    }
 
     gl.deleteShader(vertexShader3d);
     gl.deleteShader(fragmentShader3d);
     gl.deleteShader(vertexShaderAnim3d);
-
-    gl.useProgram(program3d);
-    for (let i = 0; i < 4; i += 1) {
-        gl.enableVertexAttribArray(i);
-    }
-    gl.useProgram(programAnim3d);
-    for (let i = 0; i < 8; i += 1) {
-        gl.enableVertexAttribArray(i);
-    }
     
     gl.activeTexture(gl.TEXTURE0);
     gl.enable(gl.SCISSOR_TEST);
