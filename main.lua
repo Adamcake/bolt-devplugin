@@ -75,10 +75,10 @@ bolt.onrender3d(function (event)
         mm5,  mm6,  mm7,  mm8,
         mm9,  mm10, mm11, mm12,
         mm13, mm14, mm15, mm16 = event:modelmatrix():get()
-  local pm1,  pm2,  pm3,  pm4,
-        pm5,  pm6,  pm7,  pm8,
-        pm9,  pm10, pm11, pm12,
-        pm13, pm14, pm15, pm16 = event:viewprojmatrix():get()
+  local vm1,  vm2,  vm3,  vm4,
+        vm5,  vm6,  vm7,  vm8,
+        vm9,  vm10, vm11, vm12,
+        vm13, vm14, vm15, vm16 = event:viewmatrix():get()
   
   if capturetextures[textureid] == nil then
     capturetextures[textureid] = true
@@ -124,22 +124,22 @@ bolt.onrender3d(function (event)
   message:setfloat32(68, mm14)
   message:setfloat32(72, mm15)
   message:setfloat32(76, mm16)
-  message:setfloat32(80, pm1)
-  message:setfloat32(84, pm2)
-  message:setfloat32(88, pm3)
-  message:setfloat32(92, pm4)
-  message:setfloat32(96, pm5)
-  message:setfloat32(100, pm6)
-  message:setfloat32(104, pm7)
-  message:setfloat32(108, pm8)
-  message:setfloat32(112, pm9)
-  message:setfloat32(116, pm10)
-  message:setfloat32(120, pm11)
-  message:setfloat32(124, pm12)
-  message:setfloat32(128, pm13)
-  message:setfloat32(132, pm14)
-  message:setfloat32(136, pm15)
-  message:setfloat32(140, pm16)
+  message:setfloat32(80, vm1)
+  message:setfloat32(84, vm2)
+  message:setfloat32(88, vm3)
+  message:setfloat32(92, vm4)
+  message:setfloat32(96, vm5)
+  message:setfloat32(100, vm6)
+  message:setfloat32(104, vm7)
+  message:setfloat32(108, vm8)
+  message:setfloat32(112, vm9)
+  message:setfloat32(116, vm10)
+  message:setfloat32(120, vm11)
+  message:setfloat32(124, vm12)
+  message:setfloat32(128, vm13)
+  message:setfloat32(132, vm14)
+  message:setfloat32(136, vm15)
+  message:setfloat32(140, vm16)
   local cursor = 144
 
   for i = 1, vertexcount do

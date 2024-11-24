@@ -7,7 +7,8 @@ out highp vec4 rgba;
 out highp vec2 uv;
 out highp vec4 image_xywh;
 uniform mat4 modelmatrix;
-uniform mat4 viewprojmatrix;
+uniform mat4 viewmatrix;
+uniform mat4 projmatrix;
 uniform highp vec2 atlas_wh;
 void main() {
     rgba = in_rgba;
@@ -18,7 +19,7 @@ void main() {
         in_image_xywh.p / atlas_wh.s,
         in_image_xywh.q / atlas_wh.t
     );
-    gl_Position = viewprojmatrix * modelmatrix * vec4(xyz_and_bone.xyz, 1.0);
+    gl_Position = projmatrix * viewmatrix * modelmatrix * vec4(xyz_and_bone.xyz, 1.0);
 }
 `;
 
@@ -32,7 +33,8 @@ out highp vec4 rgba;
 out highp vec2 uv;
 out highp vec4 image_xywh;
 uniform mat4 modelmatrix;
-uniform mat4 viewprojmatrix;
+uniform mat4 viewmatrix;
+uniform mat4 projmatrix;
 uniform highp vec2 atlas_wh;
 void main() {
     rgba = in_rgba;
@@ -43,7 +45,7 @@ void main() {
         in_image_xywh.p / atlas_wh.s,
         in_image_xywh.q / atlas_wh.t
     );
-    gl_Position = viewprojmatrix * modelmatrix * anim * vec4(xyz_and_bone.xyz, 1.0);
+    gl_Position = projmatrix * viewmatrix * modelmatrix * anim * vec4(xyz_and_bone.xyz, 1.0);
 }
 `;
 
@@ -71,18 +73,32 @@ let entities = [];
 let gl = null;
 let canvas = null;
 let maxAttribCount;
+let projMatrix;
 
 let program3d = null;
 let program3d_uModelMatrix;
-let program3d_uViewProjMatrix;
+let program3d_uViewMatrix;
+let program3d_uProjMatrix;
 let program3d_uAtlasWH;
 let program3d_uTex;
 
 let programAnim3d = null;
 let programAnim3d_uModelMatrix;
-let programAnim3d_uViewProjMatrix;
+let programAnim3d_uViewMatrix;
+let programAnim3d_uProjMatrix;
 let programAnim3d_uAtlasWH;
 let programAnim3d_uTex;
+const makeProjMatrix = (width, height, near, far) => {
+    // the view matrix given to us by the game is slightly incorrect in that it projects the world into the positive
+    // z-axis instead of the negative, so to compensate for this, the third row of this matrix is negated from what you
+    // might find in a normal projection matrix.
+    return new Float32Array([
+        near / (width / 2), 0.0, 0.0, 0.0,
+        0.0, near / (height / 2), 0.0, 0.0,
+        0.0, 0.0, (far + near) / (far - near), 1.0,
+        0.0, 0.0, -2 * far * near / (far - near), 0.0,
+    ]);
+};
 
 const redraw = () => {
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -97,7 +113,8 @@ const redraw = () => {
             const tex = textures[entity.textureId];
             gl.useProgram(entity.animated ? programAnim3d : program3d);
             gl.uniformMatrix4fv(entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix, false, entity.modelMatrix);
-            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uViewProjMatrix : program3d_uViewProjMatrix, false, entity.viewProjMatrix);
+            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uViewMatrix : program3d_uViewMatrix, false, entity.viewMatrix);
+            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix, false, projMatrix);
             gl.uniform2fv(entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH, [tex.width, tex.height]);
             gl.bindTexture(gl.TEXTURE_2D, tex.texture);
             gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
@@ -186,8 +203,8 @@ const handleMessage = (message) => {
             const textureId = arr.getUint32(8, true);
             const modelMatrix = new Float32Array(16);
             modelMatrix.set(new Float32Array(message, 16, 16));
-            const viewProjMatrix = new Float32Array(16);
-            viewProjMatrix.set(new Float32Array(message, 80, 16));
+            const viewMatrix = new Float32Array(16);
+            viewMatrix.set(new Float32Array(message, 80, 16));
             const vbo = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
             const bufferData = new DataView(message, 144, vertexCount * vertexMsgSize);
@@ -199,7 +216,7 @@ const handleMessage = (message) => {
                 vbo,
                 vertexCount,
                 modelMatrix,
-                viewProjMatrix,
+                viewMatrix,
             });
             receivedVertices += vertexCount;
             redraw();
@@ -246,7 +263,8 @@ window.addEventListener('DOMContentLoaded', () => {
     gl.detachShader(program3d, vertexShader3d);
     gl.detachShader(program3d, fragmentShader3d);
     program3d_uModelMatrix = gl.getUniformLocation(program3d, 'modelmatrix');
-    program3d_uViewProjMatrix = gl.getUniformLocation(program3d, 'viewprojmatrix');
+    program3d_uViewMatrix = gl.getUniformLocation(program3d, 'viewmatrix');
+    program3d_uProjMatrix = gl.getUniformLocation(program3d, 'projmatrix');
     program3d_uAtlasWH = gl.getUniformLocation(program3d, 'atlas_wh');
     program3d_uTex = gl.getUniformLocation(program3d, 'tex');
 
@@ -257,7 +275,8 @@ window.addEventListener('DOMContentLoaded', () => {
     gl.detachShader(programAnim3d, vertexShaderAnim3d);
     gl.detachShader(programAnim3d, fragmentShader3d);
     programAnim3d_uModelMatrix = gl.getUniformLocation(programAnim3d, 'modelmatrix');
-    programAnim3d_uViewProjMatrix = gl.getUniformLocation(programAnim3d, 'viewprojmatrix');
+    programAnim3d_uViewMatrix = gl.getUniformLocation(programAnim3d, 'viewmatrix');
+    programAnim3d_uProjMatrix = gl.getUniformLocation(programAnim3d, 'projmatrix');
     programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, 'atlas_wh');
     programAnim3d_uTex = gl.getUniformLocation(programAnim3d, 'tex');
 
@@ -279,6 +298,7 @@ window.addEventListener('DOMContentLoaded', () => {
     pending = [];
 
     const resizecanvas = () => {
+        projMatrix = makeProjMatrix(window.innerWidth, window.innerHeight, 460, 65536 + 1024);
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         redraw();
