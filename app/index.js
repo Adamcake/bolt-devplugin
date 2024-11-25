@@ -88,13 +88,18 @@ let programAnim3d_uViewMatrix;
 let programAnim3d_uProjMatrix;
 let programAnim3d_uAtlasWH;
 let programAnim3d_uTex;
+
 const makeProjMatrix = (width, height, near, far) => {
+    // https://www.songho.ca/opengl/gl_projectionmatrix.html
     // the view matrix given to us by the game is slightly incorrect in that it projects the world into the positive
     // z-axis instead of the negative, so to compensate for this, the third row of this matrix is negated from what you
-    // might find in a normal projection matrix.
+    // might find in a normal projection matrix. this matrix is also row-major whereas the article linked above uses
+    // column-major notation.
+    // 5/16 looks to be roughly equal to the field-of-view used by the game, which can't be changed as far as I know.
+    const fov = 5 / 16;
     return new Float32Array([
-        near / (width / 2), 0.0, 0.0, 0.0,
-        0.0, near / (height / 2), 0.0, 0.0,
+        near / (width * fov), 0.0, 0.0, 0.0,
+        0.0, near / (height * fov), 0.0, 0.0,
         0.0, 0.0, (far + near) / (far - near), 1.0,
         0.0, 0.0, -2 * far * near / (far - near), 0.0,
     ]);
