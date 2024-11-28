@@ -41,8 +41,20 @@ bolt.onswapbuffers(function (event)
   capturing = capturepending
   capturepending = false
   capturetextures = {}
+  local windoww, windowh = bolt.gamewindowsize()
+  local gvx, gvy, gvw, gvh = bolt.gameviewxywh()
   if capturing then
-    local browser = bolt.createbrowser(1000, 750, string.format("file://app/index.html?n=%s", tostring(captureestimate)))
+    local url = string.format(
+      "file://app/index.html?n=%s&w=%s&h=%s&gx=%s&gy=%s&gw=%s&gh=%s",
+      tostring(captureestimate),
+      tostring(windoww),
+      tostring(windowh),
+      tostring(gvx),
+      tostring(gvy),
+      tostring(gvw),
+      tostring(gvh)
+    )
+    local browser = bolt.createbrowser(windoww, windowh, url)
     browser:showdevtools()
     browser:oncloserequest(function ()
       browser:close()
@@ -56,17 +68,70 @@ bolt.onswapbuffers(function (event)
 end)
 
 bolt.onrender2d(function (event)
-  captureestimate = captureestimate + event:vertexcount()
+  local vertexcount = event:vertexcount()
+  captureestimate = captureestimate + vertexcount
   if not capturing then return end
-  -- send all the details to the browser using capturebrowser:sendmessage
-  -- remember to differentiate between normal UI and the minimap by checking event:isminimap()
+
+  if event:verticesperimage() ~= 6 then
+    return
+  end
+  
+  if event:isminimap() then
+    -- todo
+    return
+  end
+
+  local vertexcount = event:vertexcount()
+  local textureid = event:textureid()
+  if capturetextures[textureid] == nil then
+    capturetextures[textureid] = true
+    local w, h = event:texturesize()
+    local message = bolt.createbuffer(16 + (w * h * 4))
+    message:setuint8(0, 1)
+    message:setuint32(4, textureid)
+    message:setuint32(8, w)
+    message:setuint32(12, h)
+    for i = 1, h do
+      message:setstring(16 + (w * 4 * (i - 1)), event:texturedata(0, i - 1, w * 4))
+    end
+    capturebrowser:sendmessage(message)
+  end
+
+  local messagesize = 16 + (vertexcount * 48)
+  local message = bolt.createbuffer(messagesize)
+  message:setuint8(0, 4)
+  message:setuint32(4, vertexcount)
+  message:setuint32(8, textureid)
+  -- 4 unused bytes
+  local cursor = 16
+  for i = 1, vertexcount do
+    local x, y = event:vertexxy(i)
+    local ax, ay = event:vertexatlasxy(i)
+    local aw, ah = event:vertexatlaswh(i)
+    local u, v = event:vertexuv(i)
+    local r, g, b, a = event:vertexcolour(i)
+    message:setfloat32(cursor, x)
+    message:setfloat32(cursor + 4, y)
+    message:setfloat32(cursor + 8, u)
+    message:setfloat32(cursor + 12, v)
+    message:setfloat32(cursor + 16, ax)
+    message:setfloat32(cursor + 20, ay)
+    message:setfloat32(cursor + 24, aw)
+    message:setfloat32(cursor + 28, ah)
+    message:setfloat32(cursor + 32, r)
+    message:setfloat32(cursor + 36, g)
+    message:setfloat32(cursor + 40, b)
+    message:setfloat32(cursor + 44, a)
+    cursor = cursor + 48
+  end
+  capturebrowser:sendmessage(message)
 end)
 
 bolt.onrender3d(function (event)
-  captureestimate = captureestimate + event:vertexcount()
+  local vertexcount = event:vertexcount()
+  captureestimate = captureestimate + vertexcount
   if not capturing then return end
 
-  local vertexcount = event:vertexcount()
   local animated = event:animated()
   local textureid = event:textureid()
   local animations = {}
@@ -95,12 +160,12 @@ bolt.onrender3d(function (event)
   end
 
   local vertexmsgsize = 56
-  if event:animated() then
+  if animated then
     vertexmsgsize = 120
   end
   local messagesize = 144 + (vertexcount * vertexmsgsize)
   local message = bolt.createbuffer(messagesize)
-  if event:animated() then
+  if animated then
     message:setuint8(0, 3)
   else
     message:setuint8(0, 2)
@@ -162,7 +227,7 @@ bolt.onrender3d(function (event)
     message:setfloat32(cursor + 44, cg)
     message:setfloat32(cursor + 48, cb)
     message:setfloat32(cursor + 52, ca)
-    if event:animated() then
+    if animated then
       local tm1,  tm2,  tm3,  tm4,
             tm5,  tm6,  tm7,  tm8,
             tm9,  tm10, tm11, tm12,

@@ -1,3 +1,44 @@
+const vertexShaderSource2d = `#version 300 es
+layout (location = 0) in highp vec4 xy_uv;
+layout (location = 1) in highp vec4 in_image_xywh;
+layout (location = 2) in highp vec4 in_rgba;
+out highp vec4 rgba;
+out highp vec2 uv;
+out highp vec4 image_xywh;
+uniform highp vec4 atlas_wh_screen_wh;
+void main() {
+    rgba = in_rgba;
+    uv = xy_uv.pq;
+    image_xywh = in_image_xywh;
+    gl_Position = vec4(
+        (xy_uv.x * 2.0 / atlas_wh_screen_wh.p) - 1.0,
+        1.0 - (xy_uv.y * 2.0 / atlas_wh_screen_wh.q),
+        0.0,
+        1.0
+    );
+}
+`;
+
+const fragmentShaderSource2d = `#version 300 es
+in highp vec4 rgba;
+in highp vec2 uv;
+in highp vec4 image_xywh;
+out highp vec4 col;
+uniform sampler2D tex;
+uniform highp vec4 atlas_wh_screen_wh;
+void main() {
+    if (uv.s < -60000.0) {
+        col = rgba;
+    } else {
+        highp vec2 atlas_wh = atlas_wh_screen_wh.st;
+        highp vec2 abs_image_wh = abs(image_xywh.pq);
+        highp vec2 mod_atlas_uv = (image_xywh.st + (fract((uv - (image_xywh.st / atlas_wh)) / (abs_image_wh / atlas_wh)) * abs_image_wh)) / atlas_wh;
+        highp vec2 clamp_atlas_uv = min(max(uv * atlas_wh, image_xywh.st), image_xywh.st + abs_image_wh) / atlas_wh;
+        col = texture(tex, mix(clamp_atlas_uv, mod_atlas_uv, step(vec2(0.0), image_xywh.pq))) * rgba;
+    }
+}
+`;
+
 const vertexShaderSource3d = `#version 300 es
 layout (location = 0) in highp vec4 xyz_and_bone;
 layout (location = 1) in highp vec2 in_uv;
@@ -56,7 +97,7 @@ in highp vec4 image_xywh;
 out highp vec4 col;
 uniform sampler2D tex;
 void main() {
-    col = texture(tex, vec2( image_xywh.x + (fract(uv.x) * image_xywh.z), image_xywh.y + (fract(uv.y) * image_xywh.w) )) * rgba;
+    col = texture(tex, image_xywh.st + (fract(uv) * image_xywh.pq)) * rgba;
 }
 `;
 
@@ -74,6 +115,16 @@ let gl = null;
 let canvas = null;
 let maxAttribCount;
 let projMatrix;
+const windoww = params.get('w');
+const windowh = params.get('h');
+const gvx = params.get('gx');
+const gvy = params.get('gy');
+const gvw = params.get('gw');
+const gvh = params.get('gh');
+
+let program2d = null;
+let program2d_uAtlasWHScreenWH;
+let program2d_uTex;
 
 let program3d = null;
 let program3d_uModelMatrix;
@@ -89,14 +140,12 @@ let programAnim3d_uProjMatrix;
 let programAnim3d_uAtlasWH;
 let programAnim3d_uTex;
 
-const makeProjMatrix = (width, height, near, far) => {
+const makeProjMatrix = (width, height, near, far, fov) => {
     // https://www.songho.ca/opengl/gl_projectionmatrix.html
     // the view matrix given to us by the game is slightly incorrect in that it projects the world into the positive
     // z-axis instead of the negative, so to compensate for this, the third row of this matrix is negated from what you
     // might find in a normal projection matrix. this matrix is also row-major whereas the article linked above uses
     // column-major notation.
-    // 5/16 looks to be roughly equal to the field-of-view used by the game, which can't be changed as far as I know.
-    const fov = 5 / 16;
     return new Float32Array([
         near / (width * fov), 0.0, 0.0, 0.0,
         0.0, near / (height * fov), 0.0, 0.0,
@@ -112,32 +161,54 @@ const redraw = () => {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     if (done) {
-        gl.enable(gl.DEPTH_TEST);
-        for (entity of entities.filter((x) => x.type === 'render3d')) {
-            const step = entity.animated ? 120 : 56;
-            const tex = textures[entity.textureId];
-            gl.useProgram(entity.animated ? programAnim3d : program3d);
-            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix, false, entity.modelMatrix);
-            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uViewMatrix : program3d_uViewMatrix, false, entity.viewMatrix);
-            gl.uniformMatrix4fv(entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix, false, projMatrix);
-            gl.uniform2fv(entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH, [tex.width, tex.height]);
-            gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-            gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
-            gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
-            for (let i = 0; i < maxAttribCount; i += 1) {
-                i < (entity.animated ? 8 : 4) ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+        for (entity of entities) {
+            if (entity.type === 'batch2d') {
+                gl.disable(gl.DEPTH_TEST);
+                const step = 48;
+                const tex = textures[entity.textureId];
+                gl.useProgram(program2d);
+                gl.viewport(0, 0, windoww, windowh);
+                gl.uniform4fv(program2d_uAtlasWHScreenWH, [tex.width, tex.height, windoww, windowh]);
+                gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+                gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
+                gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
+                for (let i = 0; i < maxAttribCount; i += 1) {
+                    i < 3 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+                }
+                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
+                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, step, 16);
+                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 32);
+                gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
             }
-            gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
-            gl.vertexAttribPointer(1, 2, gl.FLOAT, false, step, 16);
-            gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 24);
-            gl.vertexAttribPointer(3, 4, gl.FLOAT, false, step, 40);
-            if (entity.animated) {
-                gl.vertexAttribPointer(4, 4, gl.FLOAT, false, step, 56);
-                gl.vertexAttribPointer(5, 4, gl.FLOAT, false, step, 72);
-                gl.vertexAttribPointer(6, 4, gl.FLOAT, false, step, 88);
-                gl.vertexAttribPointer(7, 4, gl.FLOAT, false, step, 104);
+
+            if (entity.type === 'render3d') {
+                gl.enable(gl.DEPTH_TEST);
+                const step = entity.animated ? 120 : 56;
+                const tex = textures[entity.textureId];
+                gl.useProgram(entity.animated ? programAnim3d : program3d);
+                gl.viewport(gvx, gvy, gvw, gvh);
+                gl.uniformMatrix4fv(entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix, false, entity.modelMatrix);
+                gl.uniformMatrix4fv(entity.animated ? programAnim3d_uViewMatrix : program3d_uViewMatrix, false, entity.viewMatrix);
+                gl.uniformMatrix4fv(entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix, false, projMatrix);
+                gl.uniform2fv(entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH, [tex.width, tex.height]);
+                gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+                gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
+                gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
+                for (let i = 0; i < maxAttribCount; i += 1) {
+                    i < (entity.animated ? 8 : 4) ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+                }
+                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
+                gl.vertexAttribPointer(1, 2, gl.FLOAT, false, step, 16);
+                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 24);
+                gl.vertexAttribPointer(3, 4, gl.FLOAT, false, step, 40);
+                if (entity.animated) {
+                    gl.vertexAttribPointer(4, 4, gl.FLOAT, false, step, 56);
+                    gl.vertexAttribPointer(5, 4, gl.FLOAT, false, step, 72);
+                    gl.vertexAttribPointer(6, 4, gl.FLOAT, false, step, 88);
+                    gl.vertexAttribPointer(7, 4, gl.FLOAT, false, step, 104);
+                }
+                gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
             }
-            gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
         }
     } else {
         const clearForeground = () => {
@@ -179,11 +250,12 @@ const handleMessage = (message) => {
     const arr = new DataView(message);
     const msgtype = arr.getUint32(0, true);
     switch (msgtype) {
-        case 0:
+        case 0: {
             done = true;
             redraw();
             break;
-        case 1:
+        }
+        case 1: {
             const textureid = arr.getUint32(4, true);
             const width = arr.getUint32(8, true);
             const height = arr.getUint32(12, true);
@@ -200,8 +272,9 @@ const handleMessage = (message) => {
                 height,
             };
             break;
+        }
         case 2:
-        case 3:
+        case 3: {
             const animated = msgtype === 3;
             const vertexMsgSize = animated ? 120 : 56;
             const vertexCount = arr.getUint32(4, true);
@@ -226,6 +299,24 @@ const handleMessage = (message) => {
             receivedVertices += vertexCount;
             redraw();
             break;
+        }
+        case 4: {
+            const vertexCount = arr.getUint32(4, true);
+            const textureId = arr.getUint32(8, true);
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+            const bufferData = new DataView(message, 16, vertexCount * 48);
+            gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+            entities.push({
+                type: 'batch2d',
+                textureId,
+                vbo,
+                vertexCount,
+            });
+            receivedVertices += vertexCount;
+            redraw();
+            break;
+        }
     }
 };
 
@@ -233,6 +324,29 @@ window.addEventListener('DOMContentLoaded', () => {
     canvas = document.createElement('canvas');
     gl = canvas.getContext('webgl2');
     maxAttribCount = gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
+    canvas.width = windoww;
+    canvas.height = windowh;
+
+    // these values look to roughly match the ones used by the game, or near enough not to matter
+    projMatrix = makeProjMatrix(gvw, gvh, 460, 65536 + 1024, 5 / 16);
+
+    const vertexShader2d = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader2d, vertexShaderSource2d);
+    gl.compileShader(vertexShader2d);
+    if (!gl.getShaderParameter(vertexShader2d, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(vertexShader2d);
+        console.log(`vertex shader compilation error:\n${log}`);
+        return;
+    }
+
+    const fragmentShader2d = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader2d, fragmentShaderSource2d);
+    gl.compileShader(fragmentShader2d);
+    if (!gl.getShaderParameter(fragmentShader2d, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(fragmentShader2d);
+        console.log(`fragment shader compilation error:\n${log}`);
+        return;
+    }
 
     const vertexShader3d = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vertexShader3d, vertexShaderSource3d);
@@ -240,6 +354,15 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!gl.getShaderParameter(vertexShader3d, gl.COMPILE_STATUS)) {
         const log = gl.getShaderInfoLog(vertexShader3d);
         console.log(`vertex shader compilation error:\n${log}`);
+        return;
+    }
+
+    const vertexShaderAnim3d = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShaderAnim3d, vertexShaderSourceAnim3d);
+    gl.compileShader(vertexShaderAnim3d);
+    if (!gl.getShaderParameter(vertexShaderAnim3d, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(vertexShaderAnim3d);
+        console.log(`vertex anim shader compilation error:\n${log}`);
         return;
     }
 
@@ -252,14 +375,14 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    const vertexShaderAnim3d = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShaderAnim3d, vertexShaderSourceAnim3d);
-    gl.compileShader(vertexShaderAnim3d);
-    if (!gl.getShaderParameter(vertexShaderAnim3d, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(vertexShaderAnim3d);
-        console.log(`vertex anim shader compilation error:\n${log}`);
-        return;
-    }
+    program2d = gl.createProgram();
+    gl.attachShader(program2d, vertexShader2d);
+    gl.attachShader(program2d, fragmentShader2d);
+    gl.linkProgram(program2d);
+    gl.detachShader(program2d, vertexShader2d);
+    gl.detachShader(program2d, fragmentShader2d);
+    program2d_uAtlasWHScreenWH = gl.getUniformLocation(program2d, 'atlas_wh_screen_wh');
+    program2d_uTex = gl.getUniformLocation(program2d, 'tex');
 
     program3d = gl.createProgram();
     gl.attachShader(program3d, vertexShader3d);
@@ -285,6 +408,8 @@ window.addEventListener('DOMContentLoaded', () => {
     programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, 'atlas_wh');
     programAnim3d_uTex = gl.getUniformLocation(programAnim3d, 'tex');
 
+    gl.deleteShader(vertexShader2d);
+    gl.deleteShader(fragmentShader2d);
     gl.deleteShader(vertexShader3d);
     gl.deleteShader(fragmentShader3d);
     gl.deleteShader(vertexShaderAnim3d);
@@ -302,15 +427,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     pending = [];
 
-    const resizecanvas = () => {
-        projMatrix = makeProjMatrix(window.innerWidth, window.innerHeight, 460, 65536 + 1024);
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        redraw();
-    };
     document.body.appendChild(canvas);
-    window.addEventListener('resize', resizecanvas);
-    resizecanvas();
+    redraw();
 });
 
 window.addEventListener('message', async (event) => {
