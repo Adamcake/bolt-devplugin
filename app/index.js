@@ -417,6 +417,10 @@ const handleMessage = (message) => {
             const targetw = arr.getInt16(8, true);
             const targeth = arr.getInt16(10, true);
             const modelcount = arr.getUint32(12, true);
+            const red = arr.getFloat32(16, true);
+            const blue = arr.getFloat32(20, true);
+            const green = arr.getFloat32(24, true);
+            const alpha = arr.getFloat32(28, true);
             const texture = gl.createTexture();
             const fb = gl.createFramebuffer();
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -431,7 +435,7 @@ const handleMessage = (message) => {
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             let models = Array(modelcount);
-            let cursor = 16;
+            let cursor = 32;
             for (let model = 0; model < modelcount; model += 1) {
                 const vertexcount = arr.getUint32(cursor, true);
                 let vertices = Array(vertexcount);
@@ -500,12 +504,12 @@ const handleMessage = (message) => {
             const buffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                x1, y1, 0, 1, 0, 0, 64, 64, 1, 1, 1, 1, 0, 0, 0,
-                x2, y1, 1, 1, 0, 0, 64, 64, 1, 1, 1, 1, 0, 0, 0,
-                x1, y2, 0, 0, 0, 0, 64, 64, 1, 1, 1, 1, 0, 0, 0,
-                x2, y1, 1, 1, 0, 0, 64, 64, 1, 1, 1, 1, 0, 0, 0,
-                x2, y2, 1, 0, 0, 0, 64, 64, 1, 1, 1, 1, 0, 0, 0,
-                x1, y2, 0, 0, 0, 0, 64, 64, 1, 1, 1, 1, 0, 0, 0,
+                x1, y1, 0, 1, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
+                x2, y1, 1, 1, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
+                x1, y2, 0, 0, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
+                x2, y1, 1, 1, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
+                x2, y2, 1, 0, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
+                x1, y2, 0, 0, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
             ]), gl.STATIC_DRAW);
             entities.push({
                 type: 'itemicon',

@@ -222,9 +222,10 @@ bolt.onrendericon(function (event)
   if not capturing then return end
 
   local x, y, w, h = event:xywh()
+  local r, g, b, a = event:colour()
   local modelcount = event:modelcount()
 
-  local messagesize = 16 + (modelcount * 132)
+  local messagesize = 32 + (modelcount * 132)
   for i = 1, modelcount do
     local vertexcount = event:modelvertexcount(i)
     messagesize = messagesize + (vertexcount * 24)
@@ -236,7 +237,11 @@ bolt.onrendericon(function (event)
   message:setint16(8, w)
   message:setint16(10, h)
   message:setuint32(12, modelcount)
-  cursor = 16
+  message:setfloat32(16, r)
+  message:setfloat32(20, g)
+  message:setfloat32(24, b)
+  message:setfloat32(28, a)
+  cursor = 32
 
   for model = 1, modelcount do
     local vertexcount = event:modelvertexcount(model)
