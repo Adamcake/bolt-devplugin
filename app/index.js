@@ -2,14 +2,17 @@ const vertexShaderSource2d = `#version 300 es
 layout (location = 0) in highp vec4 xy_uv;
 layout (location = 1) in highp vec4 in_image_xywh;
 layout (location = 2) in highp vec4 in_rgba;
+layout (location = 3) in lowp vec3 in_discard_wrapx_wrapy;
 out highp vec4 rgba;
 out highp vec2 uv;
 out highp vec4 image_xywh;
+out lowp vec3 discard_wrapx_wrapy;
 uniform highp vec4 atlas_wh_screen_wh;
 void main() {
     rgba = in_rgba;
     uv = xy_uv.pq;
     image_xywh = in_image_xywh;
+    discard_wrapx_wrapy = in_discard_wrapx_wrapy;
     gl_Position = vec4(
         (xy_uv.x * 2.0 / atlas_wh_screen_wh.p) - 1.0,
         1.0 - (xy_uv.y * 2.0 / atlas_wh_screen_wh.q),
@@ -23,18 +26,18 @@ const fragmentShaderSource2d = `#version 300 es
 in highp vec4 rgba;
 in highp vec2 uv;
 in highp vec4 image_xywh;
+in lowp vec3 discard_wrapx_wrapy;
 out highp vec4 col;
 uniform sampler2D tex;
 uniform highp vec4 atlas_wh_screen_wh;
 void main() {
-    if (uv.s < -60000.0) {
+    if (discard_wrapx_wrapy.x > 0.5) {
         col = rgba;
     } else {
         highp vec2 atlas_wh = atlas_wh_screen_wh.st;
-        highp vec2 abs_image_wh = abs(image_xywh.pq);
-        highp vec2 mod_atlas_uv = (image_xywh.st + (fract((uv - (image_xywh.st / atlas_wh)) / (abs_image_wh / atlas_wh)) * abs_image_wh)) / atlas_wh;
-        highp vec2 clamp_atlas_uv = min(max(uv * atlas_wh, image_xywh.st), image_xywh.st + abs_image_wh) / atlas_wh;
-        col = texture(tex, mix(clamp_atlas_uv, mod_atlas_uv, step(vec2(0.0), image_xywh.pq))) * rgba;
+        highp vec2 mod_atlas_uv = (image_xywh.st + (fract((uv - (image_xywh.st / atlas_wh)) / (image_xywh.pq / atlas_wh)) * image_xywh.pq)) / atlas_wh;
+        highp vec2 clamp_atlas_uv = min(max(uv * atlas_wh, image_xywh.st), image_xywh.st + image_xywh.pq) / atlas_wh;
+        col = texture(tex, mix(clamp_atlas_uv, mod_atlas_uv, discard_wrapx_wrapy.yz)) * rgba;
     }
 }
 `;
@@ -115,6 +118,11 @@ let gl = null;
 let canvas = null;
 let maxAttribCount;
 let projMatrix;
+let minimaptex = null;
+let minimapWidth;
+let minimapHeight;
+let minimapfb;
+
 const windoww = params.get('w');
 const windowh = params.get('h');
 const gvx = params.get('gx');
@@ -161,10 +169,10 @@ const redraw = () => {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     if (done) {
+        gl.disable(gl.SCISSOR_TEST);
         for (entity of entities) {
             if (entity.type === 'batch2d') {
                 gl.disable(gl.DEPTH_TEST);
-                const step = 48;
                 const tex = textures[entity.textureId];
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
@@ -173,11 +181,12 @@ const redraw = () => {
                 gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
                 gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
                 for (let i = 0; i < maxAttribCount; i += 1) {
-                    i < 3 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+                    i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
                 }
-                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
-                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, step, 16);
-                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 32);
+                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
+                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
+                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
+                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
                 gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
             }
 
@@ -209,8 +218,46 @@ const redraw = () => {
                 }
                 gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
             }
+
+            if (entity.type === 'minimap') {
+                if (minimaptex === null) continue;
+                const x1 = entity.targetx;
+                const x2 = entity.targetx + entity.targetw;
+                const y1 = entity.targety;
+                const y2 = entity.targety + entity.targeth;
+                const u1 = entity.sourcex / minimapWidth;
+                const u2 = (entity.sourcex + entity.sourcew) / minimapWidth;
+                const v1 = entity.sourcey / minimapHeight;
+                const v2 = (entity.sourcey + entity.sourceh) / minimapHeight;
+                const square2d = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, square2d);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                    x1, y1, u1, v2, entity.sourcex, entity.sourcey, entity.sourcew, entity.sourceh, 1, 1, 1, 1, 0, 0, 0,
+                    x2, y1, u2, v2, entity.sourcex, entity.sourcey, entity.sourcew, entity.sourceh, 1, 1, 1, 1, 0, 0, 0,
+                    x1, y2, u1, v1, entity.sourcex, entity.sourcey, entity.sourcew, entity.sourceh, 1, 1, 1, 1, 0, 0, 0,
+                    x2, y1, u2, v2, entity.sourcex, entity.sourcey, entity.sourcew, entity.sourceh, 1, 1, 1, 1, 0, 0, 0,
+                    x2, y2, u2, v1, entity.sourcex, entity.sourcey, entity.sourcew, entity.sourceh, 1, 1, 1, 1, 0, 0, 0,
+                    x1, y2, u1, v1, entity.sourcex, entity.sourcey, entity.sourcew, entity.sourceh, 1, 1, 1, 1, 0, 0, 0,
+                ]), gl.STATIC_DRAW);
+                gl.disable(gl.DEPTH_TEST);
+                gl.useProgram(program2d);
+                gl.viewport(0, 0, windoww, windowh);
+                gl.uniform4fv(program2d_uAtlasWHScreenWH, [minimapWidth, minimapHeight, windoww, windowh]);
+                gl.bindTexture(gl.TEXTURE_2D, minimaptex);
+                gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
+                for (let i = 0; i < maxAttribCount; i += 1) {
+                    i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+                }
+                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
+                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
+                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
+                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                gl.deleteBuffer(square2d);
+            }
         }
     } else {
+        gl.viewport(0, 0, canvas.width, canvas.height);
         const clearForeground = () => {
             gl.clearColor(0.525, 0.968, 0.495, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -305,15 +352,179 @@ const handleMessage = (message) => {
             const textureId = arr.getUint32(8, true);
             const vbo = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-            const bufferData = new DataView(message, 16, vertexCount * 48);
+            const data = new DataView(message, 16, vertexCount * 40);
+            const bufferDataArray = new ArrayBuffer(vertexCount * 60);
+            const bufferData = new DataView(bufferDataArray);
+
+            const vertices = new Array(vertexCount);
+            for (let i = 0; i < vertexCount; i += 1) {
+                const srcOffset = 40 * i;
+                const dstOffset = 60 * i;
+
+                const vertex = {
+                    x: data.getInt16(srcOffset, true),
+                    y: data.getInt16(srcOffset + 2, true),
+                    ax: data.getInt16(srcOffset + 4, true),
+                    ay: data.getInt16(srcOffset + 6, true),
+                    aw: data.getInt16(srcOffset + 8, true),
+                    ah: data.getInt16(srcOffset + 10, true),
+                    discard: data.getUint8(srcOffset + 12),
+                    wrapx: data.getUint8(srcOffset + 13),
+                    wrapy: data.getUint8(srcOffset + 14),
+                    u: data.getFloat32(srcOffset + 16, true),
+                    v: data.getFloat32(srcOffset + 20, true),
+                    r: data.getFloat32(srcOffset + 24, true),
+                    g: data.getFloat32(srcOffset + 28, true),
+                    b: data.getFloat32(srcOffset + 32, true),
+                    a: data.getFloat32(srcOffset + 36, true),
+                };
+                vertices[i] = vertex;
+
+                bufferData.setFloat32(dstOffset, vertex.x, true);
+                bufferData.setFloat32(dstOffset + 4, vertex.y, true);
+                bufferData.setFloat32(dstOffset + 8, vertex.u, true);
+                bufferData.setFloat32(dstOffset + 12, vertex.v, true);
+                bufferData.setFloat32(dstOffset + 16, vertex.ax, true);
+                bufferData.setFloat32(dstOffset + 20, vertex.ay, true);
+                bufferData.setFloat32(dstOffset + 24, vertex.aw, true);
+                bufferData.setFloat32(dstOffset + 28, vertex.ah, true);
+                bufferData.setFloat32(dstOffset + 32, vertex.r, true);
+                bufferData.setFloat32(dstOffset + 36, vertex.g, true);
+                bufferData.setFloat32(dstOffset + 40, vertex.b, true);
+                bufferData.setFloat32(dstOffset + 44, vertex.a, true);
+                bufferData.setFloat32(dstOffset + 48, vertex.discard, true);
+                bufferData.setFloat32(dstOffset + 52, vertex.wrapx, true);
+                bufferData.setFloat32(dstOffset + 56, vertex.wrapy, true);
+            }
+
             gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
             entities.push({
                 type: 'batch2d',
                 textureId,
                 vbo,
                 vertexCount,
+                vertices,
             });
             receivedVertices += vertexCount;
+            redraw();
+            break;
+        }
+        case 5: {
+            // todo
+            const targetx = arr.getInt16(4, true);
+            const targety = arr.getInt16(6, true);
+            const targetw = arr.getInt16(8, true);
+            const targeth = arr.getInt16(10, true);
+            const modelcount = arr.getUint32(12, true);
+            console.log(`icon at ${targetx},${targety} is ${targetw}x${targeth}, with ${modelcount} models`);
+            break;
+        }
+        case 6: {
+            const vertexCount = arr.getUint32(4, true);
+            const textureId = arr.getUint32(8, true);
+            minimapWidth = arr.getUint16(12, true);
+            minimapHeight = arr.getUint16(14, true);
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+            const data = new DataView(message, 16, vertexCount * 40);
+            const bufferDataArray = new ArrayBuffer(vertexCount * 60);
+            const bufferData = new DataView(bufferDataArray);
+
+            const vertices = new Array(vertexCount);
+            for (let i = 0; i < vertexCount; i += 1) {
+                const srcOffset = 40 * i;
+                const dstOffset = 60 * i;
+
+                const vertex = {
+                    x: data.getInt16(srcOffset, true),
+                    y: data.getInt16(srcOffset + 2, true),
+                    ax: data.getInt16(srcOffset + 4, true),
+                    ay: data.getInt16(srcOffset + 6, true),
+                    aw: data.getInt16(srcOffset + 8, true),
+                    ah: data.getInt16(srcOffset + 10, true),
+                    discard: data.getUint8(srcOffset + 12),
+                    wrapx: data.getUint8(srcOffset + 13),
+                    wrapy: data.getUint8(srcOffset + 14),
+                    u: data.getFloat32(srcOffset + 16, true),
+                    v: data.getFloat32(srcOffset + 20, true),
+                    r: data.getFloat32(srcOffset + 24, true),
+                    g: data.getFloat32(srcOffset + 28, true),
+                    b: data.getFloat32(srcOffset + 32, true),
+                    a: data.getFloat32(srcOffset + 36, true),
+                };
+                vertices[i] = vertex;
+
+                bufferData.setFloat32(dstOffset, vertex.x, true);
+                bufferData.setFloat32(dstOffset + 4, vertex.y, true);
+                bufferData.setFloat32(dstOffset + 8, vertex.u, true);
+                bufferData.setFloat32(dstOffset + 12, vertex.v, true);
+                bufferData.setFloat32(dstOffset + 16, vertex.ax, true);
+                bufferData.setFloat32(dstOffset + 20, vertex.ay, true);
+                bufferData.setFloat32(dstOffset + 24, vertex.aw, true);
+                bufferData.setFloat32(dstOffset + 28, vertex.ah, true);
+                bufferData.setFloat32(dstOffset + 32, vertex.r, true);
+                bufferData.setFloat32(dstOffset + 36, vertex.g, true);
+                bufferData.setFloat32(dstOffset + 40, vertex.b, true);
+                bufferData.setFloat32(dstOffset + 44, vertex.a, true);
+                bufferData.setFloat32(dstOffset + 48, vertex.discard, true);
+                bufferData.setFloat32(dstOffset + 52, vertex.wrapx, true);
+                bufferData.setFloat32(dstOffset + 56, vertex.wrapy, true);
+            }
+            gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+
+            if (!minimaptex) {
+                minimaptex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, minimaptex);
+                gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, minimapWidth, minimapHeight);
+                minimapfb = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
+                gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, minimaptex, 0);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+            } else {
+                gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
+            }
+
+            gl.viewport(0, 0, minimapWidth, minimapHeight);
+            gl.scissor(0, 0, minimapWidth, minimapHeight);
+            gl.disable(gl.DEPTH_TEST);
+            const tex = textures[textureId];
+            gl.useProgram(program2d);
+            gl.uniform4fv(program2d_uAtlasWHScreenWH, [tex.width, tex.height, minimapWidth, minimapHeight]);
+            gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+            gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
+            for (let i = 0; i < maxAttribCount; i += 1) {
+                i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+            }
+            gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
+            gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
+            gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
+            gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
+            gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+
+            gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+            entities.push({
+                type: 'minimap2d',
+                textureId,
+                vbo,
+                vertexCount,
+                vertices,
+            });
+            receivedVertices += vertexCount;
+            redraw();
+            break;
+        }
+        case 7: {
+            entities.push({
+                type: 'minimap',
+                sourcex: arr.getInt16(4, true),
+                sourcey: arr.getInt16(6, true),
+                sourcew: arr.getUint16(8, true),
+                sourceh: arr.getUint16(10, true),
+                targetx: arr.getInt16(12, true),
+                targety: arr.getInt16(14, true),
+                targetw: arr.getUint16(16, true),
+                targeth: arr.getUint16(18, true),
+            });
             redraw();
             break;
         }
@@ -419,7 +630,8 @@ window.addEventListener('DOMContentLoaded', () => {
     gl.disable(gl.CULL_FACE);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
     gl.depthFunc(gl.LEQUAL);
 
     for (i in pending) {
