@@ -224,8 +224,8 @@ bolt.onrendericon(function (event)
   local x, y, w, h = event:xywh()
   local r, g, b, a = event:colour()
   local modelcount = event:modelcount()
-
-  local messagesize = 32 + (modelcount * 132)
+  local tw, th = event:targetsize()
+  local messagesize = 36 + (modelcount * 132)
   for i = 1, modelcount do
     local vertexcount = event:modelvertexcount(i)
     messagesize = messagesize + (vertexcount * 24)
@@ -241,7 +241,9 @@ bolt.onrendericon(function (event)
   message:setfloat32(20, g)
   message:setfloat32(24, b)
   message:setfloat32(28, a)
-  cursor = 32
+  message:setuint16(32, tw)
+  message:setuint16(34, th)
+  cursor = 36
 
   for model = 1, modelcount do
     local vertexcount = event:modelvertexcount(model)
@@ -277,7 +279,8 @@ bolt.onrenderminimap(function (event)
   if not capturing then return end
   local sx, sy, sw, sh = event:sourcexywh()
   local tx, ty, tw, th = event:targetxywh()
-  local message = bolt.createbuffer(20)
+  local w, h = event:targetsize()
+  local message = bolt.createbuffer(24)
   message:setuint8(0, 7)
   message:setint16(4, sx)
   message:setint16(6, sy)
@@ -287,6 +290,8 @@ bolt.onrenderminimap(function (event)
   message:setint16(14, ty)
   message:setuint16(16, tw)
   message:setuint16(18, th)
+  message:setuint16(20, w)
+  message:setuint16(22, h)
   capturebrowser:sendmessage(message)
 end)
 

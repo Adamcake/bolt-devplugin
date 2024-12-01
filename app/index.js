@@ -177,7 +177,7 @@ const redraw = () => {
                 const tex = textures[entity.textureId];
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
-                gl.uniform4fv(program2d_uAtlasWHScreenWH, [tex.width, tex.height, windoww, windowh]);
+                gl.uniform4fv(program2d_uAtlasWHScreenWH, [tex.width, tex.height, entity.targetWidth, entity.targetHeight]);
                 gl.bindTexture(gl.TEXTURE_2D, tex.texture);
                 gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
                 gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
@@ -226,7 +226,7 @@ const redraw = () => {
                 gl.viewport(0, 0, windoww, windowh);
                 gl.bindTexture(gl.TEXTURE_2D, entity.texture);
                 gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
-                gl.uniform4fv(program2d_uAtlasWHScreenWH, [64, 64, windoww, windowh]);
+                gl.uniform4fv(program2d_uAtlasWHScreenWH, [64, 64, entity.targetWidth, entity.targetHeight]);
                 gl.bindBuffer(gl.ARRAY_BUFFER, entity.buffer);
                 for (let i = 0; i < maxAttribCount; i += 1) {
                     i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
@@ -243,7 +243,7 @@ const redraw = () => {
                 gl.disable(gl.DEPTH_TEST);
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
-                gl.uniform4fv(program2d_uAtlasWHScreenWH, [minimapWidth, minimapHeight, windoww, windowh]);
+                gl.uniform4fv(program2d_uAtlasWHScreenWH, [minimapWidth, minimapHeight, entity.targetWidth, entity.targetHeight]);
                 gl.bindTexture(gl.TEXTURE_2D, minimaptex);
                 gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
                 gl.bindBuffer(gl.ARRAY_BUFFER, entity.buffer);
@@ -351,6 +351,8 @@ const handleMessage = (message) => {
         case 4: {
             const vertexCount = arr.getUint32(4, true);
             const textureId = arr.getUint32(8, true);
+            const targetWidth = arr.getUint16(12, true);
+            const targetHeight = arr.getUint16(14, true);
             const vbo = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
             const data = new DataView(message, 16, vertexCount * 40);
@@ -405,6 +407,8 @@ const handleMessage = (message) => {
                 vbo,
                 vertexCount,
                 vertices,
+                targetWidth,
+                targetHeight,
             });
             receivedVertices += vertexCount;
             redraw();
@@ -421,6 +425,8 @@ const handleMessage = (message) => {
             const blue = arr.getFloat32(20, true);
             const green = arr.getFloat32(24, true);
             const alpha = arr.getFloat32(28, true);
+            const targetWidth = arr.getUint16(32, true);
+            const targetHeight = arr.getUint16(34, true);
             const texture = gl.createTexture();
             const fb = gl.createFramebuffer();
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -435,7 +441,7 @@ const handleMessage = (message) => {
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             let models = Array(modelcount);
-            let cursor = 32;
+            let cursor = 36;
             for (let model = 0; model < modelcount; model += 1) {
                 const vertexcount = arr.getUint32(cursor, true);
                 let vertices = Array(vertexcount);
@@ -516,6 +522,8 @@ const handleMessage = (message) => {
                 models,
                 texture,
                 buffer,
+                targetWidth,
+                targetHeight,
             });
             gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
             gl.deleteFramebuffer(fb);
@@ -625,6 +633,8 @@ const handleMessage = (message) => {
             const targety = arr.getInt16(14, true);
             const targetw = arr.getUint16(16, true);
             const targeth = arr.getUint16(18, true);
+            const targetWidth = arr.getUint16(20, true);
+            const targetHeight = arr.getUint16(22, true);
             const x1 = targetx;
             const x2 = targetx + targetw;
             const y1 = targety;
@@ -653,6 +663,8 @@ const handleMessage = (message) => {
                 targety,
                 targetw,
                 targeth,
+                targetWidth,
+                targetHeight,
                 buffer,
             });
             redraw();
