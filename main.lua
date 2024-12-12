@@ -217,9 +217,9 @@ bolt.onrender3d(function (event)
 
   sendtexture(event)
 
-  local vertexmsgsize = 56
+  local vertexmsgsize = 40
   if animated then
-    vertexmsgsize = 120
+    vertexmsgsize = 104
   end
   local messagesize = 144 + (vertexcount * vertexmsgsize)
   local message = bolt.createbuffer(messagesize)
@@ -241,22 +241,22 @@ bolt.onrender3d(function (event)
     local u, v = event:vertexuv(i)
     local cr, cg, cb, ca = event:vertexcolour(i)
     local imgx, imgy, imgw, imgh = event:atlasxywh(atlasmeta)
-    message:setfloat32(cursor     , x)
-    message:setfloat32(cursor +  4, y)
-    message:setfloat32(cursor +  8, z)
-    -- 4 unused bytes
-    message:setfloat32(cursor + 16, u)
-    message:setfloat32(cursor + 20, v)
-    message:setfloat32(cursor + 24, imgx)
-    message:setfloat32(cursor + 28, imgy)
-    message:setfloat32(cursor + 32, imgw)
-    message:setfloat32(cursor + 36, imgh)
-    message:setfloat32(cursor + 40, cr)
-    message:setfloat32(cursor + 44, cg)
-    message:setfloat32(cursor + 48, cb)
-    message:setfloat32(cursor + 52, ca)
+    message:setint16(cursor, x)
+    message:setint16(cursor + 2, y)
+    message:setint16(cursor + 4, z)
+    -- 2 unused bytes
+    message:setfloat32(cursor + 8, u)
+    message:setfloat32(cursor + 12, v)
+    message:setuint16(cursor + 16, imgx)
+    message:setuint16(cursor + 18, imgy)
+    message:setuint16(cursor + 20, imgw)
+    message:setuint16(cursor + 22, imgh)
+    message:setfloat32(cursor + 24, cr)
+    message:setfloat32(cursor + 28, cg)
+    message:setfloat32(cursor + 32, cb)
+    message:setfloat32(cursor + 36, ca)
     if animated then
-      setbuffermatrix(message, cursor + 56, event:vertexanimation(i))
+      setbuffermatrix(message, cursor + 40, event:vertexanimation(i))
     end
     cursor = cursor + vertexmsgsize
   end
