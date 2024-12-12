@@ -151,6 +151,55 @@ local function send2d(event, id)
   capturebrowser:sendmessage(message)
 end
 
+local function sendicon(event, id)
+  local x, y, w, h = event:xywh()
+  local r, g, b, a = event:colour()
+  local modelcount = event:modelcount()
+  local tw, th = event:targetsize()
+  local messagesize = 36 + (modelcount * 196)
+  for i = 1, modelcount do
+    local vertexcount = event:modelvertexcount(i)
+    messagesize = messagesize + (vertexcount * 24)
+  end
+  local message = bolt.createbuffer(messagesize)
+  message:setuint8(0, id)
+  message:setint16(4, x)
+  message:setint16(6, y)
+  message:setint16(8, w)
+  message:setint16(10, h)
+  message:setuint32(12, modelcount)
+  message:setfloat32(16, r)
+  message:setfloat32(20, g)
+  message:setfloat32(24, b)
+  message:setfloat32(28, a)
+  message:setuint16(32, tw)
+  message:setuint16(34, th)
+  cursor = 36
+
+  for model = 1, modelcount do
+    local vertexcount = event:modelvertexcount(model)
+    message:setuint32(cursor, vertexcount)
+    setbuffermatrix(message, cursor + 4, event:modelmodelmatrix(model))
+    setbuffermatrix(message, cursor + 68, event:modelviewmatrix(model))
+    setbuffermatrix(message, cursor + 132, event:modelprojectionmatrix(model))
+    cursor = cursor + 196
+    for vertex = 1, vertexcount do
+      local vx, vy, vz = event:modelvertexpoint(model, vertex):get()
+      local vr, vg, vb, va = event:modelvertexcolour(model, vertex)
+      message:setint16(cursor, vx)
+      message:setint16(cursor + 2, vy)
+      message:setint16(cursor + 4, vz)
+      -- 2 unused bytes
+      message:setfloat32(cursor + 8, vr)
+      message:setfloat32(cursor + 12, vg)
+      message:setfloat32(cursor + 16, vb)
+      message:setfloat32(cursor + 20, va)
+      cursor = cursor + 24
+    end
+  end
+  capturebrowser:sendmessage(message)
+end
+
 bolt.onrender2d(function (event)
   local vertexcount = event:vertexcount()
   captureestimate = captureestimate + vertexcount
@@ -220,52 +269,16 @@ bolt.onrendericon(function (event)
     captureestimate = captureestimate + event:modelvertexcount(i)
   end
   if not capturing then return end
+  sendicon(event, 5)
+end)
 
-  local x, y, w, h = event:xywh()
-  local r, g, b, a = event:colour()
+bolt.onrenderbigicon(function (event)
   local modelcount = event:modelcount()
-  local tw, th = event:targetsize()
-  local messagesize = 36 + (modelcount * 132)
   for i = 1, modelcount do
-    local vertexcount = event:modelvertexcount(i)
-    messagesize = messagesize + (vertexcount * 24)
+    captureestimate = captureestimate + event:modelvertexcount(i)
   end
-  local message = bolt.createbuffer(messagesize)
-  message:setuint8(0, 5)
-  message:setint16(4, x)
-  message:setint16(6, y)
-  message:setint16(8, w)
-  message:setint16(10, h)
-  message:setuint32(12, modelcount)
-  message:setfloat32(16, r)
-  message:setfloat32(20, g)
-  message:setfloat32(24, b)
-  message:setfloat32(28, a)
-  message:setuint16(32, tw)
-  message:setuint16(34, th)
-  cursor = 36
-
-  for model = 1, modelcount do
-    local vertexcount = event:modelvertexcount(model)
-    message:setuint32(cursor, vertexcount)
-    setbuffermatrix(message, cursor + 4, event:modelviewmatrix(model))
-    setbuffermatrix(message, cursor + 68, event:modelprojectionmatrix(model))
-    cursor = cursor + 132
-    for vertex = 1, vertexcount do
-      local vx, vy, vz = event:modelvertexpoint(model, vertex):get()
-      local vr, vg, vb, va = event:modelvertexcolour(model, vertex)
-      message:setint16(cursor, vx)
-      message:setint16(cursor + 2, vy)
-      message:setint16(cursor + 4, vz)
-      -- 2 unused bytes
-      message:setfloat32(cursor + 8, vr)
-      message:setfloat32(cursor + 12, vg)
-      message:setfloat32(cursor + 16, vb)
-      message:setfloat32(cursor + 20, va)
-      cursor = cursor + 24
-    end
-  end
-  capturebrowser:sendmessage(message)
+  if not capturing then return end
+  sendicon(event, 8)
 end)
 
 bolt.onminimaprender2d(function (event)

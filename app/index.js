@@ -220,13 +220,13 @@ const redraw = () => {
                 gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
             }
 
-            if (entity.type === 'itemicon') {
+            if (entity.type === 'icon' || entity.type === 'bigicon') {
                 gl.disable(gl.DEPTH_TEST);
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
                 gl.bindTexture(gl.TEXTURE_2D, entity.texture);
                 gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
-                gl.uniform4fv(program2d_uAtlasWHScreenWH, [64, 64, entity.targetWidth, entity.targetHeight]);
+                gl.uniform4fv(program2d_uAtlasWHScreenWH, [entity.texSize, entity.texSize, entity.targetWidth, entity.targetHeight]);
                 gl.bindBuffer(gl.ARRAY_BUFFER, entity.buffer);
                 for (let i = 0; i < maxAttribCount; i += 1) {
                     i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
@@ -414,8 +414,10 @@ const handleMessage = (message) => {
             redraw();
             break;
         }
-        case 5: {
+        case 5:
+        case 8: {
             const step = 56;
+            const texSize = msgtype === 5 ? 64 : 512;
             const targetx = arr.getInt16(4, true);
             const targety = arr.getInt16(6, true);
             const targetw = arr.getInt16(8, true);
@@ -431,12 +433,12 @@ const handleMessage = (message) => {
             const fb = gl.createFramebuffer();
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, fb);
-            gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 64, 64);
+            gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, texSize, texSize);
             gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
             gl.disable(gl.SCISSOR_TEST);
             gl.enable(gl.CULL_FACE);
             gl.cullFace(gl.FRONT);
-            gl.viewport(0, 0, 64, 64);
+            gl.viewport(0, 0, texSize, texSize);
             gl.clearColor(0, 0, 0, 0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -447,11 +449,13 @@ const handleMessage = (message) => {
                 let vertices = Array(vertexcount);
                 const bufferDataArray = new ArrayBuffer(vertexcount * step);
                 const bufferData = new DataView(bufferDataArray);
+                const modelMatrix = new Float32Array(16);
+                modelMatrix.set(new Float32Array(message, cursor + 4, 16));
                 const viewMatrix = new Float32Array(16);
-                viewMatrix.set(new Float32Array(message, cursor + 4, 16));
+                viewMatrix.set(new Float32Array(message, cursor + 68, 16));
                 const projMatrix = new Float32Array(16);
-                projMatrix.set(new Float32Array(message, cursor + 68, 16));
-                cursor += 132;
+                projMatrix.set(new Float32Array(message, cursor + 132, 16));
+                cursor += 196;
                 for (let vertex = 0; vertex < vertexcount; vertex += 1) {
                     const v = {
                         x: arr.getInt16(cursor, true),
@@ -468,8 +472,8 @@ const handleMessage = (message) => {
                     bufferData.setFloat32(bufferDataOffset + 8, v.z, true);
                     bufferData.setFloat32(bufferDataOffset + 24, 0, true);
                     bufferData.setFloat32(bufferDataOffset + 28, 0, true);
-                    bufferData.setFloat32(bufferDataOffset + 32, 64, true);
-                    bufferData.setFloat32(bufferDataOffset + 36, 64, true);
+                    bufferData.setFloat32(bufferDataOffset + 32, texSize, true);
+                    bufferData.setFloat32(bufferDataOffset + 36, texSize, true);
                     bufferData.setFloat32(bufferDataOffset + 40, v.r, true);
                     bufferData.setFloat32(bufferDataOffset + 44, v.g, true);
                     bufferData.setFloat32(bufferDataOffset + 48, v.b, true);
@@ -479,6 +483,7 @@ const handleMessage = (message) => {
                 }
                 models[model] = {
                     vertices,
+                    modelMatrix,
                     viewMatrix,
                     projMatrix,
                 };
@@ -487,7 +492,7 @@ const handleMessage = (message) => {
                 gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
                 gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
                 gl.useProgram(program3d);
-                gl.uniformMatrix4fv(program3d_uModelMatrix, false, identityMatrix);
+                gl.uniformMatrix4fv(program3d_uModelMatrix, false, modelMatrix);
                 gl.uniformMatrix4fv(program3d_uViewMatrix, false, viewMatrix);
                 gl.uniformMatrix4fv(program3d_uProjMatrix, false, projMatrix);
                 gl.uniform2fv(program3d_uAtlasWH, [1, 1]);
@@ -510,20 +515,21 @@ const handleMessage = (message) => {
             const buffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                x1, y1, 0, 1, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
-                x2, y1, 1, 1, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
-                x1, y2, 0, 0, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
-                x2, y1, 1, 1, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
-                x2, y2, 1, 0, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
-                x1, y2, 0, 0, 0, 0, 64, 64, red, green, blue, alpha, 0, 0, 0,
+                x1, y1, 0, 1, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
+                x2, y1, 1, 1, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
+                x1, y2, 0, 0, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
+                x2, y1, 1, 1, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
+                x2, y2, 1, 0, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
+                x1, y2, 0, 0, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
             ]), gl.STATIC_DRAW);
             entities.push({
-                type: 'itemicon',
+                type: msgtype === 5 ? 'icon' : 'bigicon',
                 models,
                 texture,
                 buffer,
                 targetWidth,
                 targetHeight,
+                texSize
             });
             gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
             gl.deleteFramebuffer(fb);
