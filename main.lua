@@ -174,7 +174,7 @@ local function sendicon(event, id)
   message:setfloat32(28, a)
   message:setuint16(32, tw)
   message:setuint16(34, th)
-  cursor = 36
+  local cursor = 36
 
   for model = 1, modelcount do
     local vertexcount = event:modelvertexcount(model)

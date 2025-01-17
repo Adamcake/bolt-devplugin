@@ -136,6 +136,7 @@ const estimatedVertices = n ? Math.max(parseInt(n), 1) : 1;
 let receivedVertices = 0;
 let done = false;
 let pending = [];
+const textureUnitID = 0;
 
 let textures = {};
 let entities = [];
@@ -181,6 +182,40 @@ let programParticles_uProjMatrix;
 let programParticles_uTex;
 let programParticles_uAtlasWH;
 
+const batch2dAttribs = [
+    {count: 4, offset: 0},
+    {count: 4, offset: 16},
+    {count: 4, offset: 32},
+    {count: 3, offset: 48},
+];
+
+const render3dAttribs = [
+    {count: 4, offset: 0},
+    {count: 2, offset: 16},
+    {count: 4, offset: 24},
+    {count: 4, offset: 40},
+];
+
+const render3dAnimAttribs = [
+    {count: 4, offset: 0},
+    {count: 2, offset: 16},
+    {count: 4, offset: 24},
+    {count: 4, offset: 40},
+    {count: 4, offset: 56},
+    {count: 4, offset: 72},
+    {count: 4, offset: 88},
+    {count: 4, offset: 104},
+];
+
+const renderParticlesAttribs = [
+    {count: 3, offset: 0},
+    {count: 4, offset: 28},
+    {count: 2, offset: 44},
+    {count: 3, offset: 52},
+    {count: 2, offset: 64},
+    {count: 4, offset: 12},
+];
+
 //const getPixelRow = (tex, vertex, row) => {
 //    const t = tex;
 //    const start = (vertex.ay + row) * tex.width * 4 + (vertex.ax * 4);
@@ -205,6 +240,20 @@ const makeProjMatrix = (width, height, near, far, fov) => {
     ]);
 };
 
+const drawArraysFromEntityBuffer = (buffer, vertexCount) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer.vbo);
+    for (let i = 0; i < maxAttribCount; i += 1) {
+        const attrib = buffer.attribs[i];
+        if (!attrib) {
+            gl.disableVertexAttribArray(i);
+            continue;
+        }
+        gl.enableVertexAttribArray(i);
+        gl.vertexAttribPointer(i, attrib.count, gl.FLOAT, false, buffer.step, attrib.offset);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+};
+
 const redraw = () => {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.scissor(0, 0, canvas.width, canvas.height);
@@ -222,22 +271,13 @@ const redraw = () => {
                 gl.viewport(0, 0, windoww, windowh);
                 gl.uniform4fv(program2d_uAtlasWHScreenWH, [tex.width, tex.height, entity.targetWidth, entity.targetHeight]);
                 gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-                gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
-                gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
-                for (let i = 0; i < maxAttribCount; i += 1) {
-                    i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
-                }
-                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
-                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
-                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
-                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
-                gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
+                gl.uniform1i(program2d_uTex, textureUnitID);
+                drawArraysFromEntityBuffer(entity.buffer, entity.vertexCount);
             }
 
             if (entity.type === 'render3d') {
                 gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.enable(gl.DEPTH_TEST);
-                const step = entity.animated ? 120 : 56;
                 const tex = textures[entity.textureId];
                 gl.useProgram(entity.animated ? programAnim3d : program3d);
                 gl.viewport(gvx, gvy, gvw, gvh);
@@ -246,28 +286,13 @@ const redraw = () => {
                 gl.uniformMatrix4fv(entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix, false, projMatrix);
                 gl.uniform2fv(entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH, [tex.width, tex.height]);
                 gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-                gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, 0); // because we activated TEXTURE0 earlier
-                gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
-                for (let i = 0; i < maxAttribCount; i += 1) {
-                    i < (entity.animated ? 8 : 4) ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
-                }
-                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
-                gl.vertexAttribPointer(1, 2, gl.FLOAT, false, step, 16);
-                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 24);
-                gl.vertexAttribPointer(3, 4, gl.FLOAT, false, step, 40);
-                if (entity.animated) {
-                    gl.vertexAttribPointer(4, 4, gl.FLOAT, false, step, 56);
-                    gl.vertexAttribPointer(5, 4, gl.FLOAT, false, step, 72);
-                    gl.vertexAttribPointer(6, 4, gl.FLOAT, false, step, 88);
-                    gl.vertexAttribPointer(7, 4, gl.FLOAT, false, step, 104);
-                }
-                gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
+                gl.uniform1i(entity.animated ? programAnim3d_uTex : program3d_uTex, textureUnitID);
+                drawArraysFromEntityBuffer(entity.buffer, entity.vertexCount);
             }
 
             if (entity.type === 'renderparticles') {
                 gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.enable(gl.DEPTH_TEST);
-                const step = 72;
                 const tex = textures[entity.textureId];
                 gl.useProgram(programParticles);
                 gl.viewport(gvx, gvy, gvw, gvh);
@@ -275,18 +300,8 @@ const redraw = () => {
                 gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix);
                 gl.uniform2fv(programParticles_uAtlasWH, [tex.width, tex.height]);
                 gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-                gl.uniform1i(programParticles_uTex, 0); // because we activated TEXTURE0 earlier
-                gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
-                for (let i = 0; i < maxAttribCount; i += 1) {
-                    i < 6 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
-                }
-                gl.vertexAttribPointer(0, 3, gl.FLOAT, false, step, 0);
-                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, step, 28);
-                gl.vertexAttribPointer(2, 2, gl.FLOAT, false, step, 44);
-                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, step, 52);
-                gl.vertexAttribPointer(4, 2, gl.FLOAT, false, step, 64);
-                gl.vertexAttribPointer(5, 4, gl.FLOAT, false, step, 12);
-                gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
+                gl.uniform1i(programParticles_uTex, textureUnitID);
+                drawArraysFromEntityBuffer(entity.buffer, entity.vertexCount);
             }
 
             if (entity.type === 'icon' || entity.type === 'bigicon') {
@@ -295,17 +310,9 @@ const redraw = () => {
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
                 gl.bindTexture(gl.TEXTURE_2D, entity.texture);
-                gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
+                gl.uniform1i(program2d_uTex, textureUnitID);
                 gl.uniform4fv(program2d_uAtlasWHScreenWH, [entity.texSize, entity.texSize, entity.targetWidth, entity.targetHeight]);
-                gl.bindBuffer(gl.ARRAY_BUFFER, entity.buffer);
-                for (let i = 0; i < maxAttribCount; i += 1) {
-                    i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
-                }
-                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
-                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
-                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
-                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                drawArraysFromEntityBuffer(entity.buffer, 6);
             }
 
             if (entity.type === 'minimap') {
@@ -316,16 +323,8 @@ const redraw = () => {
                 gl.viewport(0, 0, windoww, windowh);
                 gl.uniform4fv(program2d_uAtlasWHScreenWH, [minimapWidth, minimapHeight, entity.targetWidth, entity.targetHeight]);
                 gl.bindTexture(gl.TEXTURE_2D, minimaptex);
-                gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
-                gl.bindBuffer(gl.ARRAY_BUFFER, entity.buffer);
-                for (let i = 0; i < maxAttribCount; i += 1) {
-                    i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
-                }
-                gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
-                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
-                gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
-                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                gl.uniform1i(program2d_uTex, textureUnitID);
+                drawArraysFromEntityBuffer(entity.buffer, 6);
             }
         }
     } else {
@@ -466,17 +465,23 @@ const handleMessage = (message) => {
                 type: 'render3d',
                 animated,
                 textureId,
-                vbo,
                 vertexCount,
                 modelMatrix,
                 viewMatrix,
                 vertices,
+                buffer: {
+                    vbo,
+                    step: vertexBufferSize,
+                    attribs: animated ? render3dAnimAttribs : render3dAttribs,
+                },
             });
             receivedVertices += vertexCount;
             redraw();
             break;
         }
         case 4: {
+            const vertexMsgSize = 40;
+            const vertexBufferSize = 60;
             const vertexCount = arr.getUint32(4, true);
             const textureId = arr.getUint32(8, true);
             const targetWidth = arr.getUint16(12, true);
@@ -484,13 +489,13 @@ const handleMessage = (message) => {
             const vbo = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
             const data = new DataView(message, 16, vertexCount * 40);
-            const bufferDataArray = new ArrayBuffer(vertexCount * 60);
+            const bufferDataArray = new ArrayBuffer(vertexCount * vertexBufferSize);
             const bufferData = new DataView(bufferDataArray);
 
             const vertices = new Array(vertexCount);
             for (let i = 0; i < vertexCount; i += 1) {
-                const srcOffset = 40 * i;
-                const dstOffset = 60 * i;
+                const srcOffset = vertexMsgSize * i;
+                const dstOffset = vertexBufferSize * i;
 
                 const vertex = {
                     x: data.getInt16(srcOffset, true),
@@ -532,11 +537,15 @@ const handleMessage = (message) => {
             entities.push({
                 type: 'batch2d',
                 textureId,
-                vbo,
                 vertexCount,
                 vertices,
                 targetWidth,
                 targetHeight,
+                buffer: {
+                    vbo,
+                    step: vertexBufferSize,
+                    attribs: batch2dAttribs,
+                },
             });
             receivedVertices += vertexCount;
             redraw();
@@ -625,7 +634,7 @@ const handleMessage = (message) => {
                 gl.uniformMatrix4fv(program3d_uProjMatrix, false, projMatrix);
                 gl.uniform2fv(program3d_uAtlasWH, [1, 1]);
                 gl.bindTexture(gl.TEXTURE_2D, whitePixelTex);
-                gl.uniform1i(program3d_uTex, 0); // because we activated TEXTURE0 earlier
+                gl.uniform1i(program3d_uTex, textureUnitID);
                 for (let i = 0; i < maxAttribCount; i += 1) {
                     i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
                 }
@@ -640,8 +649,8 @@ const handleMessage = (message) => {
             const x2 = targetx + targetw;
             const y1 = targety;
             const y2 = targety + targeth;
-            const buffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
                 x1, y1, 0, 1, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
                 x2, y1, 1, 1, 0, 0, texSize, texSize, red, green, blue, alpha, 0, 0, 0,
@@ -654,10 +663,14 @@ const handleMessage = (message) => {
                 type: msgtype === 5 ? 'icon' : 'bigicon',
                 models,
                 texture,
-                buffer,
                 targetWidth,
                 targetHeight,
-                texSize
+                texSize,
+                buffer: {
+                    vbo,
+                    step: 60,
+                    attribs: batch2dAttribs,
+                },
             });
             gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
             gl.deleteFramebuffer(fb);
@@ -736,7 +749,7 @@ const handleMessage = (message) => {
             gl.useProgram(program2d);
             gl.uniform4fv(program2d_uAtlasWHScreenWH, [tex.width, tex.height, minimapWidth, minimapHeight]);
             gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-            gl.uniform1i(program2d_uTex, 0); // because we activated TEXTURE0 earlier
+            gl.uniform1i(program2d_uTex, textureUnitID);
             for (let i = 0; i < maxAttribCount; i += 1) {
                 i < 4 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
             }
@@ -777,8 +790,8 @@ const handleMessage = (message) => {
             const u2 = (sourcex + sourcew) / minimapWidth;
             const v1 = sourcey / minimapHeight;
             const v2 = (sourcey + sourceh) / minimapHeight;
-            const buffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
                 x1, y1, u1, v2, sourcex, sourcey, sourcew, sourceh, 1, 1, 1, 1, 0, 0, 0,
                 x2, y1, u2, v2, sourcex, sourcey, sourcew, sourceh, 1, 1, 1, 1, 0, 0, 0,
@@ -799,7 +812,11 @@ const handleMessage = (message) => {
                 targeth,
                 targetWidth,
                 targetHeight,
-                buffer,
+                buffer: {
+                    vbo,
+                    step: 60,
+                    attribs: batch2dAttribs,
+                },
             });
             redraw();
             break;
@@ -869,10 +886,14 @@ const handleMessage = (message) => {
             entities.push({
                 type: 'renderparticles',
                 textureId,
-                vbo,
                 vertexCount,
                 vertices,
                 viewMatrix,
+                buffer: {
+                    vbo,
+                    step: vertexBufferSize,
+                    attribs: renderParticlesAttribs,
+                }
             });
             receivedVertices += vertexCount;
             redraw();
@@ -903,99 +924,57 @@ window.addEventListener('DOMContentLoaded', () => {
     // these values look to roughly match the ones used by the game, or near enough not to matter
     projMatrix = makeProjMatrix(gvw, gvh, 460, 65536 + 1024, 5 / 16);
 
-    const vertexShader2d = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader2d, vertexShaderSource2d);
-    gl.compileShader(vertexShader2d);
-    if (!gl.getShaderParameter(vertexShader2d, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(vertexShader2d);
-        console.log(`vertex shader compilation error:\n${log}`);
-        return;
-    }
+    const compileShader = (type, source, desc) => {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            const log = gl.getShaderInfoLog(shader);
+            throw new Error(`compilation error in shader '${desc}':\n${log}`);
+        }
+        return shader;
+    };
 
-    const fragmentShader2d = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader2d, fragmentShaderSource2d);
-    gl.compileShader(fragmentShader2d);
-    if (!gl.getShaderParameter(fragmentShader2d, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(fragmentShader2d);
-        console.log(`fragment shader compilation error:\n${log}`);
-        return;
-    }
+    const linkProgram = (vertex, fragment, desc) => {
+        const program = gl.createProgram();
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        gl.linkProgram(program);
+        gl.detachShader(program, vertex);
+        gl.detachShader(program, fragment);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            const log = gl.getProgramInfoLog(program);
+            throw new Error(`link error in program '${desc}':\n${log}`);
+        }
+        return program;
+    };
 
-    const vertexShader3d = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader3d, vertexShaderSource3d);
-    gl.compileShader(vertexShader3d);
-    if (!gl.getShaderParameter(vertexShader3d, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(vertexShader3d);
-        console.log(`vertex shader compilation error:\n${log}`);
-        return;
-    }
+    const vertexShader2d = compileShader(gl.VERTEX_SHADER, vertexShaderSource2d, "2D vertex shader");
+    const fragmentShader2d = compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource2d, "2D fragment shader");
+    const vertexShader3d = compileShader(gl.VERTEX_SHADER, vertexShaderSource3d, "3D vertex shader");
+    const vertexShaderAnim3d = compileShader(gl.VERTEX_SHADER, vertexShaderSourceAnim3d, "3D anim vertex shader");
+    const fragmentShader3d = compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource3d, "3D fragment shader");
+    const vertexShaderParticles = compileShader(gl.VERTEX_SHADER, vertexShaderSourceParticles, "particle vertex shader");
 
-    const vertexShaderAnim3d = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShaderAnim3d, vertexShaderSourceAnim3d);
-    gl.compileShader(vertexShaderAnim3d);
-    if (!gl.getShaderParameter(vertexShaderAnim3d, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(vertexShaderAnim3d);
-        console.log(`vertex anim shader compilation error:\n${log}`);
-        return;
-    }
-
-    const fragmentShader3d = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader3d, fragmentShaderSource3d);
-    gl.compileShader(fragmentShader3d);
-    if (!gl.getShaderParameter(fragmentShader3d, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(fragmentShader3d);
-        console.log(`fragment shader compilation error:\n${log}`);
-        return;
-    }
-
-    const vertexShaderParticles = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShaderParticles, vertexShaderSourceParticles);
-    gl.compileShader(vertexShaderParticles);
-    if (!gl.getShaderParameter(vertexShaderParticles, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(vertexShaderParticles);
-        console.log(`vertex shader compilation error:\n${log}`);
-        return;
-    }
-
-    program2d = gl.createProgram();
-    gl.attachShader(program2d, vertexShader2d);
-    gl.attachShader(program2d, fragmentShader2d);
-    gl.linkProgram(program2d);
-    gl.detachShader(program2d, vertexShader2d);
-    gl.detachShader(program2d, fragmentShader2d);
+    program2d = linkProgram(vertexShader2d, fragmentShader2d, "2D program");
     program2d_uAtlasWHScreenWH = gl.getUniformLocation(program2d, 'atlas_wh_screen_wh');
     program2d_uTex = gl.getUniformLocation(program2d, 'tex');
 
-    program3d = gl.createProgram();
-    gl.attachShader(program3d, vertexShader3d);
-    gl.attachShader(program3d, fragmentShader3d);
-    gl.linkProgram(program3d);
-    gl.detachShader(program3d, vertexShader3d);
-    gl.detachShader(program3d, fragmentShader3d);
+    program3d = linkProgram(vertexShader3d, fragmentShader3d, "3D program");
     program3d_uModelMatrix = gl.getUniformLocation(program3d, 'modelmatrix');
     program3d_uViewMatrix = gl.getUniformLocation(program3d, 'viewmatrix');
     program3d_uProjMatrix = gl.getUniformLocation(program3d, 'projmatrix');
     program3d_uAtlasWH = gl.getUniformLocation(program3d, 'atlas_wh');
     program3d_uTex = gl.getUniformLocation(program3d, 'tex');
 
-    programAnim3d = gl.createProgram();
-    gl.attachShader(programAnim3d, vertexShaderAnim3d);
-    gl.attachShader(programAnim3d, fragmentShader3d);
-    gl.linkProgram(programAnim3d);
-    gl.detachShader(programAnim3d, vertexShaderAnim3d);
-    gl.detachShader(programAnim3d, fragmentShader3d);
+    programAnim3d = linkProgram(vertexShaderAnim3d, fragmentShader3d);
     programAnim3d_uModelMatrix = gl.getUniformLocation(programAnim3d, 'modelmatrix');
     programAnim3d_uViewMatrix = gl.getUniformLocation(programAnim3d, 'viewmatrix');
     programAnim3d_uProjMatrix = gl.getUniformLocation(programAnim3d, 'projmatrix');
     programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, 'atlas_wh');
     programAnim3d_uTex = gl.getUniformLocation(programAnim3d, 'tex');
 
-    programParticles = gl.createProgram();
-    gl.attachShader(programParticles, vertexShaderParticles);
-    gl.attachShader(programParticles, fragmentShader3d);
-    gl.linkProgram(programParticles);
-    gl.detachShader(programParticles, vertexShaderParticles);
-    gl.detachShader(programParticles, fragmentShader3d);
+    programParticles = linkProgram(vertexShaderParticles, fragmentShader3d);
     programParticles_uViewMatrix = gl.getUniformLocation(programParticles, 'viewmatrix');
     programParticles_uProjMatrix = gl.getUniformLocation(programParticles, 'projmatrix');
     programParticles_uTex = gl.getUniformLocation(programParticles, 'tex');
@@ -1008,7 +987,7 @@ window.addEventListener('DOMContentLoaded', () => {
     gl.deleteShader(vertexShaderAnim3d);
     gl.deleteShader(vertexShaderParticles);
     
-    gl.activeTexture(gl.TEXTURE0);
+    gl.activeTexture(gl.TEXTURE0 + textureUnitID);
     gl.enable(gl.SCISSOR_TEST);
     gl.disable(gl.CULL_FACE);
     gl.disable(gl.DEPTH_TEST);
@@ -1019,7 +998,7 @@ window.addEventListener('DOMContentLoaded', () => {
     for (i in pending) {
         handleMessage(pending[i]);
     }
-    pending = [];
+    pending = null;
 
     document.body.appendChild(canvas);
     redraw();
