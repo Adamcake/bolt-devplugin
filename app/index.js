@@ -104,6 +104,32 @@ void main() {
 }
 `;
 
+const vertexShaderSourceParticles = `#version 300 es
+layout (location = 0) in highp vec3 xyz;
+layout (location = 1) in highp vec4 in_rgba;
+layout (location = 2) in highp vec2 offset2d;
+layout (location = 3) in highp vec3 offset3d;
+layout (location = 4) in highp vec2 in_uv;
+layout (location = 5) in highp vec4 in_image_xywh;
+out highp vec4 rgba;
+out highp vec2 uv;
+out highp vec4 image_xywh;
+uniform mat4 viewmatrix;
+uniform mat4 projmatrix;
+uniform highp vec2 atlas_wh;
+void main() {
+    rgba = in_rgba;
+    uv = in_uv;
+    image_xywh = vec4(
+        in_image_xywh.s / atlas_wh.s,
+        in_image_xywh.t / atlas_wh.t,
+        in_image_xywh.p / atlas_wh.s,
+        in_image_xywh.q / atlas_wh.t
+    );
+    gl_Position = projmatrix * (vec4(offset2d, 0.0, 0.0) + (viewmatrix * vec4(xyz + offset3d, 1.0)));
+}
+`;
+
 const params = new URLSearchParams(window.location.search);
 const n = params.get('n');
 const estimatedVertices = n ? Math.max(parseInt(n), 1) : 1;
@@ -149,6 +175,22 @@ let programAnim3d_uProjMatrix;
 let programAnim3d_uAtlasWH;
 let programAnim3d_uTex;
 
+let programParticles = null;
+let programParticles_uViewMatrix;
+let programParticles_uProjMatrix;
+let programParticles_uTex;
+let programParticles_uAtlasWH;
+
+//const getPixelRow = (tex, vertex, row) => {
+//    const t = tex;
+//    const start = (vertex.ay + row) * tex.width * 4 + (vertex.ax * 4);
+//    const d = t.data.slice(start, start + (vertex.aw * 4));
+//    return Array.from(d).map((x) => {
+//        const s = x.toString(16);
+//        if (s.length === 1) {return "\\x0".concat(s);} else {return "\\x".concat(s);}
+//    }).join('');
+//}
+
 const makeProjMatrix = (width, height, near, far, fov) => {
     // https://www.songho.ca/opengl/gl_projectionmatrix.html
     // the view matrix given to us by the game is slightly incorrect in that it projects the world into the positive
@@ -173,6 +215,7 @@ const redraw = () => {
         gl.disable(gl.SCISSOR_TEST);
         for (entity of entities) {
             if (entity.type === 'batch2d') {
+                gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.disable(gl.DEPTH_TEST);
                 const tex = textures[entity.textureId];
                 gl.useProgram(program2d);
@@ -192,6 +235,7 @@ const redraw = () => {
             }
 
             if (entity.type === 'render3d') {
+                gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.enable(gl.DEPTH_TEST);
                 const step = entity.animated ? 120 : 56;
                 const tex = textures[entity.textureId];
@@ -220,7 +264,33 @@ const redraw = () => {
                 gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
             }
 
+            if (entity.type === 'renderparticles') {
+                gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+                gl.enable(gl.DEPTH_TEST);
+                const step = 72;
+                const tex = textures[entity.textureId];
+                gl.useProgram(programParticles);
+                gl.viewport(gvx, gvy, gvw, gvh);
+                gl.uniformMatrix4fv(programParticles_uViewMatrix, false, entity.viewMatrix);
+                gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix);
+                gl.uniform2fv(programParticles_uAtlasWH, [tex.width, tex.height]);
+                gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+                gl.uniform1i(programParticles_uTex, 0); // because we activated TEXTURE0 earlier
+                gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo);
+                for (let i = 0; i < maxAttribCount; i += 1) {
+                    i < 6 ? gl.enableVertexAttribArray(i) : gl.disableVertexAttribArray(i);
+                }
+                gl.vertexAttribPointer(0, 3, gl.FLOAT, false, step, 0);
+                gl.vertexAttribPointer(1, 4, gl.FLOAT, false, step, 28);
+                gl.vertexAttribPointer(2, 2, gl.FLOAT, false, step, 44);
+                gl.vertexAttribPointer(3, 3, gl.FLOAT, false, step, 52);
+                gl.vertexAttribPointer(4, 2, gl.FLOAT, false, step, 64);
+                gl.vertexAttribPointer(5, 4, gl.FLOAT, false, step, 12);
+                gl.drawArrays(gl.TRIANGLES, 0, entity.vertexCount);
+            }
+
             if (entity.type === 'icon' || entity.type === 'bigicon') {
+                gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.disable(gl.DEPTH_TEST);
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
@@ -240,6 +310,7 @@ const redraw = () => {
 
             if (entity.type === 'minimap') {
                 if (minimaptex === null) continue;
+                gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.disable(gl.DEPTH_TEST);
                 gl.useProgram(program2d);
                 gl.viewport(0, 0, windoww, windowh);
@@ -733,6 +804,80 @@ const handleMessage = (message) => {
             redraw();
             break;
         }
+        case 9: {
+            const vertexCount = arr.getUint32(4, true);
+            const textureId = arr.getUint32(8, true);
+
+            const vertexMsgSize = 64;
+            const vertexBufferSize = 72;
+            const viewMatrix = new Float32Array(16);
+            viewMatrix.set(new Float32Array(message, 16, 16));
+            const data = new DataView(message, 80, vertexCount * vertexMsgSize);
+            const vertices = new Array(vertexCount);
+            const bufferDataArray = new ArrayBuffer(vertexCount * vertexBufferSize);
+            const bufferData = new DataView(bufferDataArray);
+
+            for (let i = 0; i < vertexCount; i += 1) {
+                const srcOffset = vertexMsgSize * i;
+                const dstOffset = vertexBufferSize * i;
+
+                const vertex = {
+                    x: data.getFloat32(srcOffset, true),
+                    y: data.getFloat32(srcOffset + 4, true),
+                    z: data.getFloat32(srcOffset + 8, true),
+                    offsetx2d: data.getFloat32(srcOffset + 12, true),
+                    offsety2d: data.getFloat32(srcOffset + 16, true),
+                    offsetx3d: data.getFloat32(srcOffset + 20, true),
+                    offsety3d: data.getFloat32(srcOffset + 24, true),
+                    offsetz3d: data.getFloat32(srcOffset + 28, true),
+                    ax: data.getUint16(srcOffset + 32, true),
+                    ay: data.getUint16(srcOffset + 34, true),
+                    aw: data.getUint16(srcOffset + 36, true),
+                    ah: data.getUint16(srcOffset + 38, true),
+                    r: data.getFloat32(srcOffset + 40, true),
+                    g: data.getFloat32(srcOffset + 44, true),
+                    b: data.getFloat32(srcOffset + 48, true),
+                    a: data.getFloat32(srcOffset + 52, true),
+                    u: data.getFloat32(srcOffset + 56, true),
+                    v: data.getFloat32(srcOffset + 60, true),
+                };
+                vertices[i] = vertex;
+
+                bufferData.setFloat32(dstOffset, vertex.x, true);
+                bufferData.setFloat32(dstOffset + 4, vertex.y, true);
+                bufferData.setFloat32(dstOffset + 8, vertex.z, true);
+                bufferData.setFloat32(dstOffset + 12, vertex.ax, true);
+                bufferData.setFloat32(dstOffset + 16, vertex.ay, true);
+                bufferData.setFloat32(dstOffset + 20, vertex.aw, true);
+                bufferData.setFloat32(dstOffset + 24, vertex.ah, true);
+                bufferData.setFloat32(dstOffset + 28, vertex.r, true);
+                bufferData.setFloat32(dstOffset + 32, vertex.g, true);
+                bufferData.setFloat32(dstOffset + 36, vertex.b, true);
+                bufferData.setFloat32(dstOffset + 40, vertex.a, true);
+                bufferData.setFloat32(dstOffset + 44, vertex.offsetx2d, true);
+                bufferData.setFloat32(dstOffset + 48, vertex.offsety2d, true);
+                bufferData.setFloat32(dstOffset + 52, vertex.offsetx3d, true);
+                bufferData.setFloat32(dstOffset + 56, vertex.offsety3d, true);
+                bufferData.setFloat32(dstOffset + 60, vertex.offsetz3d, true);
+                bufferData.setFloat32(dstOffset + 64, vertex.u, true);
+                bufferData.setFloat32(dstOffset + 68, vertex.v, true);
+            }
+
+            const vbo = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+            gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+            entities.push({
+                type: 'renderparticles',
+                textureId,
+                vbo,
+                vertexCount,
+                vertices,
+                viewMatrix,
+            });
+            receivedVertices += vertexCount;
+            redraw();
+            break;
+        }
     }
 };
 
@@ -803,6 +948,15 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    const vertexShaderParticles = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShaderParticles, vertexShaderSourceParticles);
+    gl.compileShader(vertexShaderParticles);
+    if (!gl.getShaderParameter(vertexShaderParticles, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(vertexShaderParticles);
+        console.log(`vertex shader compilation error:\n${log}`);
+        return;
+    }
+
     program2d = gl.createProgram();
     gl.attachShader(program2d, vertexShader2d);
     gl.attachShader(program2d, fragmentShader2d);
@@ -836,18 +990,29 @@ window.addEventListener('DOMContentLoaded', () => {
     programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, 'atlas_wh');
     programAnim3d_uTex = gl.getUniformLocation(programAnim3d, 'tex');
 
+    programParticles = gl.createProgram();
+    gl.attachShader(programParticles, vertexShaderParticles);
+    gl.attachShader(programParticles, fragmentShader3d);
+    gl.linkProgram(programParticles);
+    gl.detachShader(programParticles, vertexShaderParticles);
+    gl.detachShader(programParticles, fragmentShader3d);
+    programParticles_uViewMatrix = gl.getUniformLocation(programParticles, 'viewmatrix');
+    programParticles_uProjMatrix = gl.getUniformLocation(programParticles, 'projmatrix');
+    programParticles_uTex = gl.getUniformLocation(programParticles, 'tex');
+    programParticles_uAtlasWH = gl.getUniformLocation(programParticles, 'atlas_wh');
+
     gl.deleteShader(vertexShader2d);
     gl.deleteShader(fragmentShader2d);
     gl.deleteShader(vertexShader3d);
     gl.deleteShader(fragmentShader3d);
     gl.deleteShader(vertexShaderAnim3d);
+    gl.deleteShader(vertexShaderParticles);
     
     gl.activeTexture(gl.TEXTURE0);
     gl.enable(gl.SCISSOR_TEST);
     gl.disable(gl.CULL_FACE);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
-    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
     gl.depthFunc(gl.LEQUAL);
 

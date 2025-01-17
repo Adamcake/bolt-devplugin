@@ -136,7 +136,7 @@ local function send2d(event, id)
     message:setint16(cursor + 10, ah)
     message:setuint8(cursor + 12, discard and 1 or 0)
     message:setuint8(cursor + 13, wrapx and 1 or 0)
-    message:setuint8(cursor + 14, wrapy and 1 or 0)    
+    message:setuint8(cursor + 14, wrapy and 1 or 0)
     -- 1 unused byte
     if not discard then
       message:setfloat32(cursor + 16, u)
@@ -258,6 +258,54 @@ bolt.onrender3d(function (event)
     if animated then
       setbuffermatrix(message, cursor + 40, event:vertexanimation(i))
     end
+    cursor = cursor + vertexmsgsize
+  end
+  capturebrowser:sendmessage(message)
+end)
+
+bolt.onrenderparticles(function (event)
+  local vertexcount = event:vertexcount()
+  captureestimate = captureestimate + vertexcount
+  if not capturing then return end
+
+  local textureid = event:textureid()
+  sendtexture(event)
+
+  local vertexmsgsize = 64
+  local messagesize = 16 + 64 + (vertexcount * vertexmsgsize)
+  local message = bolt.createbuffer(messagesize)
+  message:setuint8(0, 9)
+  message:setuint32(4, vertexcount)
+  message:setuint32(8, textureid)
+  -- 4 unused bytes
+  setbuffermatrix(message, 16, event:viewmatrix())
+  local cursor = 80
+  for i = 1, vertexcount do
+    local x, y, z = event:vertexparticleorigin(i):get()
+    local u, v = event:vertexuv(i)
+    local offx2, offy2 = event:vertexeyeoffset(i)
+    local offx3, offy3, offz3 = event:vertexworldoffset(i)
+    local atlasmeta = event:vertexmeta(i)
+    local cr, cg, cb, ca = event:vertexcolour(i)
+    local imgx, imgy, imgw, imgh = event:atlasxywh(atlasmeta)
+    message:setfloat32(cursor, x)
+    message:setfloat32(cursor + 4, y)
+    message:setfloat32(cursor + 8, z)
+    message:setfloat32(cursor + 12, offx2)
+    message:setfloat32(cursor + 16, offy2)
+    message:setfloat32(cursor + 20, offx3)
+    message:setfloat32(cursor + 24, offy3)
+    message:setfloat32(cursor + 28, offz3)
+    message:setuint16(cursor + 32, imgx)
+    message:setuint16(cursor + 34, imgy)
+    message:setuint16(cursor + 36, imgw)
+    message:setuint16(cursor + 38, imgh)
+    message:setfloat32(cursor + 40, cr)
+    message:setfloat32(cursor + 44, cg)
+    message:setfloat32(cursor + 48, cb)
+    message:setfloat32(cursor + 52, ca)
+    message:setfloat32(cursor + 56, u)
+    message:setfloat32(cursor + 60, v)
     cursor = cursor + vertexmsgsize
   end
   capturebrowser:sendmessage(message)
