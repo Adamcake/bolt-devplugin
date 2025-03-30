@@ -19,6 +19,7 @@
     type Texture,
     type Model,
   } from "./interfaces";
+  import Menu from "./Menu.svelte";
 
   let textures: Record<number, Texture> = {};
   let entities: Entity[] = [];
@@ -109,6 +110,7 @@
   let minimapHeight: number = 0;
   let projMatrix = makeProjMatrix(gvw, gvh, 460, 65536 + 1024, 5 / 16);
   let done: boolean = false;
+  let showMenu: boolean = false;
 
   let canvas: HTMLCanvasElement | null = null;
   let gl: WebGL2RenderingContext | null = null;
@@ -289,6 +291,7 @@
     if (done) {
       gl.disable(gl.SCISSOR_TEST);
       for (let entity of entities) {
+        if (!entity.enabled) continue;
         if (entity.type === "batch2d") {
           gl.blendFuncSeparate(
             gl.SRC_ALPHA,
@@ -590,6 +593,7 @@
             step: vertexBufferSize,
             attribs: animated ? render3dAnimAttribs : render3dAttribs,
           },
+          enabled: true,
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -662,6 +666,7 @@
             step: vertexBufferSize,
             attribs: batch2dAttribs,
           },
+          enabled: true,
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -883,6 +888,7 @@
             step: 60,
             attribs: batch2dAttribs,
           },
+          enabled: true,
         });
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
         gl.deleteFramebuffer(fb);
@@ -996,6 +1002,7 @@
           textureId,
           vbo,
           vertices,
+          enabled: true,
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -1136,6 +1143,7 @@
             step: 60,
             attribs: batch2dAttribs,
           },
+          enabled: true,
         });
         redraw(canvas, gl);
         break;
@@ -1213,6 +1221,7 @@
             step: vertexBufferSize,
             attribs: renderParticlesAttribs,
           },
+          enabled: true,
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -1232,6 +1241,31 @@
   });
 </script>
 
-<main>
-  <canvas bind:this={canvas} class="float-right"></canvas>
-</main>
+<canvas bind:this={canvas} class="absolute right-0"></canvas>
+{#if showMenu}
+  <div
+    class="overflow-auto absolute w-50 h-full left-0 top-0 m-0 p-0 bg-slate-200"
+  >
+    <Menu
+      bind:entities
+      redraw={() => {
+        redraw(canvas!, gl!);
+      }}
+    />
+  </div>
+  <input
+    type="image"
+    src="plugin://app/images/bars-solid.svg"
+    class="absolute rounded-sm mx-61 my-6 p-1 w-9 h-9 bg-gray-200 opacity-75 hover:opacity-100"
+    alt="menu"
+    onclick={() => (showMenu = false)}
+  />
+{:else if done}
+  <input
+    type="image"
+    src="plugin://app/images/bars-solid.svg"
+    class="absolute rounded-sm m-6 p-1 w-9 h-9 bg-gray-200 opacity-75 hover:opacity-100"
+    alt="menu"
+    onclick={() => (showMenu = true)}
+  />
+{/if}

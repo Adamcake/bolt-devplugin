@@ -21,6 +21,7 @@ export interface Entity {
   targety?: number;
   targetw?: number;
   targeth?: number;
+  enabled: boolean;
 }
 
 export interface Texture {
