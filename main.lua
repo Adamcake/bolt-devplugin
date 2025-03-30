@@ -82,7 +82,7 @@ bolt.onswapbuffers(function (event)
   local gvx, gvy, gvw, gvh = bolt.gameviewxywh()
   if capturing then
     local url = string.format(
-      "plugin://app/index.html?n=%s&w=%s&h=%s&gx=%s&gy=%s&gw=%s&gh=%s",
+      "plugin://app/dist/index.html?n=%s&w=%s&h=%s&gx=%s&gy=%s&gw=%s&gh=%s",
       tostring(captureestimate),
       tostring(windoww),
       tostring(windowh),
