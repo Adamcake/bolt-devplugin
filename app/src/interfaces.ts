@@ -65,3 +65,10 @@ export interface Model {
   viewMatrix: Float32Array;
   projMatrix: Float32Array;
 }
+
+export interface MenuData {
+  entities: Entity[];
+  textures: Record<number, Texture>;
+  selectedTexture: Texture | null;
+  selectedTextureId: string;
+}

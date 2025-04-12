@@ -13,16 +13,15 @@
     render3dAnimAttribs,
     renderParticlesAttribs,
   } from "./shaders";
-  import {
-    type Buffer,
-    type Entity,
-    type Texture,
-    type Model,
-  } from "./interfaces";
+  import type { Buffer, Model, MenuData } from "./interfaces";
   import Menu from "./Menu.svelte";
 
-  let textures: Record<number, Texture> = {};
-  let entities: Entity[] = [];
+  let menuData: MenuData = {
+    textures: {},
+    entities: [],
+    selectedTexture: null,
+    selectedTextureId: "",
+  };
 
   const getNumberParam = (s: string): number => {
     const str: string | null = params.get(s);
@@ -288,140 +287,7 @@
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    if (done) {
-      gl.disable(gl.SCISSOR_TEST);
-      for (let entity of entities) {
-        if (!entity.enabled) continue;
-        if (entity.type === "batch2d") {
-          gl.blendFuncSeparate(
-            gl.SRC_ALPHA,
-            gl.ONE_MINUS_SRC_ALPHA,
-            gl.ONE,
-            gl.ONE_MINUS_SRC_ALPHA,
-          );
-          gl.disable(gl.DEPTH_TEST);
-          const tex = textures[entity.textureId!];
-          gl.useProgram(program2d);
-          gl.viewport(0, 0, windoww, windowh);
-          gl.uniform4fv(program2d_uAtlasWHScreenWH, [
-            tex.width,
-            tex.height,
-            entity.targetWidth!,
-            entity.targetHeight!,
-          ]);
-          gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-          gl.uniform1i(program2d_uTex, textureUnitID);
-          drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
-        }
-
-        if (entity.type === "render3d") {
-          gl.blendFuncSeparate(
-            gl.SRC_ALPHA,
-            gl.ONE_MINUS_SRC_ALPHA,
-            gl.ONE,
-            gl.ONE_MINUS_SRC_ALPHA,
-          );
-          gl.enable(gl.DEPTH_TEST);
-          const tex = textures[entity.textureId!];
-          gl.useProgram(entity.animated ? programAnim3d : program3d);
-          gl.viewport(gvx, gvy, gvw, gvh);
-          gl.uniformMatrix4fv(
-            entity.animated
-              ? programAnim3d_uModelMatrix
-              : program3d_uModelMatrix,
-            false,
-            entity.modelMatrix!,
-          );
-          gl.uniformMatrix4fv(
-            entity.animated ? programAnim3d_uViewMatrix : program3d_uViewMatrix,
-            false,
-            entity.viewMatrix!,
-          );
-          gl.uniformMatrix4fv(
-            entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix,
-            false,
-            projMatrix,
-          );
-          gl.uniform2fv(
-            entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH,
-            [tex.width, tex.height],
-          );
-          gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-          gl.uniform1i(
-            entity.animated ? programAnim3d_uTex : program3d_uTex,
-            textureUnitID,
-          );
-          drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
-        }
-
-        if (entity.type === "renderparticles") {
-          gl.blendFuncSeparate(
-            gl.ONE,
-            gl.ONE_MINUS_SRC_ALPHA,
-            gl.ONE,
-            gl.ONE_MINUS_SRC_ALPHA,
-          );
-          gl.enable(gl.DEPTH_TEST);
-          const tex = textures[entity.textureId!];
-          gl.useProgram(programParticles);
-          gl.viewport(gvx, gvy, gvw, gvh);
-          gl.uniformMatrix4fv(
-            programParticles_uViewMatrix,
-            false,
-            entity.viewMatrix!,
-          );
-          gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix);
-          gl.uniform2fv(programParticles_uAtlasWH, [tex.width, tex.height]);
-          gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-          gl.uniform1i(programParticles_uTex, textureUnitID);
-          drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
-        }
-
-        if (entity.type === "icon" || entity.type === "bigicon") {
-          const texSize: GLfloat = entity.texSize!;
-          gl.blendFuncSeparate(
-            gl.SRC_ALPHA,
-            gl.ONE_MINUS_SRC_ALPHA,
-            gl.ONE,
-            gl.ONE_MINUS_SRC_ALPHA,
-          );
-          gl.disable(gl.DEPTH_TEST);
-          gl.useProgram(program2d);
-          gl.viewport(0, 0, windoww, windowh);
-          gl.bindTexture(gl.TEXTURE_2D, entity.texture!);
-          gl.uniform1i(program2d_uTex, textureUnitID);
-          gl.uniform4fv(program2d_uAtlasWHScreenWH, [
-            texSize,
-            texSize,
-            entity.targetWidth!,
-            entity.targetHeight!,
-          ]);
-          drawArraysFromEntityBuffer(gl, entity.buffer!, 6);
-        }
-
-        if (entity.type === "minimap") {
-          if (minimaptex === null) continue;
-          gl.blendFuncSeparate(
-            gl.SRC_ALPHA,
-            gl.ONE_MINUS_SRC_ALPHA,
-            gl.ONE,
-            gl.ONE_MINUS_SRC_ALPHA,
-          );
-          gl.disable(gl.DEPTH_TEST);
-          gl.useProgram(program2d);
-          gl.viewport(0, 0, windoww, windowh);
-          gl.uniform4fv(program2d_uAtlasWHScreenWH, [
-            minimapWidth,
-            minimapHeight,
-            entity.targetWidth!,
-            entity.targetHeight!,
-          ]);
-          gl.bindTexture(gl.TEXTURE_2D, minimaptex);
-          gl.uniform1i(program2d_uTex, textureUnitID);
-          drawArraysFromEntityBuffer(gl, entity.buffer!, 6);
-        }
-      }
-    } else {
+    if (!done) {
       gl.viewport(0, 0, canvas.width, canvas.height);
       const clearForeground = () => {
         gl.clearColor(0.525, 0.968, 0.495, 1.0);
@@ -464,6 +330,189 @@
         barInnerHeight,
       );
       clearBackground();
+      return;
+    }
+
+    if (menuData.selectedTexture) {
+      const tex = menuData.selectedTexture;
+      const screenRatio = canvas.width / canvas.height;
+      const imageRatio = tex.width / tex.height;
+      const fullHeight = screenRatio >= imageRatio;
+      const targetWidth = fullHeight
+        ? (tex.width * canvas.height) / tex.height
+        : canvas.width;
+      const targetHeight = fullHeight
+        ? canvas.height
+        : (tex.height * canvas.width) / tex.width;
+      const x1 = fullHeight ? (canvas.width - canvas.height) / 2 : 0;
+      const x2 = targetWidth + x1;
+      const y1 = fullHeight ? 0 : (canvas.height - canvas.width) / 2;
+      const y2 = targetHeight + y1;
+
+      gl.blendFuncSeparate(
+        gl.SRC_ALPHA,
+        gl.ONE_MINUS_SRC_ALPHA,
+        gl.ONE,
+        gl.ONE_MINUS_SRC_ALPHA,
+      );
+      gl.disable(gl.DEPTH_TEST);
+      gl.useProgram(program2d);
+      gl.viewport(0, 0, windoww, windowh);
+      gl.uniform4fv(program2d_uAtlasWHScreenWH, [
+        tex.width,
+        tex.height,
+        canvas.width,
+        canvas.height,
+      ]);
+      gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+      gl.uniform1i(program2d_uTex, textureUnitID);
+      const vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        // prettier-ignore
+        new Float32Array([x1,y1,0,0,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x2,y1,1,0,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x1,y2,0,1,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x2,y1,1,0,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x2,y2,1,1,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x1,y2,0,1,0,0,tex.width,tex.height,1,1,1,1,0,0,0]),
+        gl.STATIC_DRAW,
+      );
+      const buffer: Buffer = {
+        vbo,
+        step: 60,
+        attribs: batch2dAttribs,
+      };
+      drawArraysFromEntityBuffer(gl, buffer, 6);
+      gl.deleteBuffer(vbo);
+      return;
+    }
+
+    gl.disable(gl.SCISSOR_TEST);
+    for (let entity of menuData.entities) {
+      if (!entity.enabled) continue;
+      if (entity.type === "batch2d") {
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          gl.ONE_MINUS_SRC_ALPHA,
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+        );
+        gl.disable(gl.DEPTH_TEST);
+        const tex = menuData.textures[entity.textureId!];
+        gl.useProgram(program2d);
+        gl.viewport(0, 0, windoww, windowh);
+        gl.uniform4fv(program2d_uAtlasWHScreenWH, [
+          tex.width,
+          tex.height,
+          entity.targetWidth!,
+          entity.targetHeight!,
+        ]);
+        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        gl.uniform1i(program2d_uTex, textureUnitID);
+        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
+      }
+
+      if (entity.type === "render3d") {
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          gl.ONE_MINUS_SRC_ALPHA,
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+        );
+        gl.enable(gl.DEPTH_TEST);
+        const tex = menuData.textures[entity.textureId!];
+        gl.useProgram(entity.animated ? programAnim3d : program3d);
+        gl.viewport(gvx, gvy, gvw, gvh);
+        gl.uniformMatrix4fv(
+          entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix,
+          false,
+          entity.modelMatrix!,
+        );
+        gl.uniformMatrix4fv(
+          entity.animated ? programAnim3d_uViewMatrix : program3d_uViewMatrix,
+          false,
+          entity.viewMatrix!,
+        );
+        gl.uniformMatrix4fv(
+          entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix,
+          false,
+          projMatrix,
+        );
+        gl.uniform2fv(
+          entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH,
+          [tex.width, tex.height],
+        );
+        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        gl.uniform1i(
+          entity.animated ? programAnim3d_uTex : program3d_uTex,
+          textureUnitID,
+        );
+        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
+      }
+
+      if (entity.type === "renderparticles") {
+        gl.blendFuncSeparate(
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+        );
+        gl.enable(gl.DEPTH_TEST);
+        const tex = menuData.textures[entity.textureId!];
+        gl.useProgram(programParticles);
+        gl.viewport(gvx, gvy, gvw, gvh);
+        gl.uniformMatrix4fv(
+          programParticles_uViewMatrix,
+          false,
+          entity.viewMatrix!,
+        );
+        gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix);
+        gl.uniform2fv(programParticles_uAtlasWH, [tex.width, tex.height]);
+        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        gl.uniform1i(programParticles_uTex, textureUnitID);
+        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
+      }
+
+      if (entity.type === "icon" || entity.type === "bigicon") {
+        const texSize: GLfloat = entity.texSize!;
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          gl.ONE_MINUS_SRC_ALPHA,
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+        );
+        gl.disable(gl.DEPTH_TEST);
+        gl.useProgram(program2d);
+        gl.viewport(0, 0, windoww, windowh);
+        gl.bindTexture(gl.TEXTURE_2D, entity.texture!);
+        gl.uniform1i(program2d_uTex, textureUnitID);
+        gl.uniform4fv(program2d_uAtlasWHScreenWH, [
+          texSize,
+          texSize,
+          entity.targetWidth!,
+          entity.targetHeight!,
+        ]);
+        drawArraysFromEntityBuffer(gl, entity.buffer!, 6);
+      }
+
+      if (entity.type === "minimap") {
+        if (minimaptex === null) continue;
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          gl.ONE_MINUS_SRC_ALPHA,
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+        );
+        gl.disable(gl.DEPTH_TEST);
+        gl.useProgram(program2d);
+        gl.viewport(0, 0, windoww, windowh);
+        gl.uniform4fv(program2d_uAtlasWHScreenWH, [
+          minimapWidth,
+          minimapHeight,
+          entity.targetWidth!,
+          entity.targetHeight!,
+        ]);
+        gl.bindTexture(gl.TEXTURE_2D, minimaptex);
+        gl.uniform1i(program2d_uTex, textureUnitID);
+        drawArraysFromEntityBuffer(gl, entity.buffer!, 6);
+      }
     }
   };
 
@@ -502,7 +551,7 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        textures[textureid] = {
+        menuData.textures[textureid] = {
           texture,
           width,
           height,
@@ -580,7 +629,7 @@
         const vbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
-        entities.push({
+        menuData.entities.push({
           type: "render3d",
           animated,
           textureId,
@@ -654,7 +703,7 @@
         }
 
         gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
-        entities.push({
+        menuData.entities.push({
           type: "batch2d",
           textureId,
           vertexCount,
@@ -782,101 +831,11 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         gl.bufferData(
           gl.ARRAY_BUFFER,
-          new Float32Array([
-            x1,
-            y1,
-            0,
-            1,
-            0,
-            0,
-            texSize,
-            texSize,
-            red,
-            green,
-            blue,
-            alpha,
-            0,
-            0,
-            0,
-            x2,
-            y1,
-            1,
-            1,
-            0,
-            0,
-            texSize,
-            texSize,
-            red,
-            green,
-            blue,
-            alpha,
-            0,
-            0,
-            0,
-            x1,
-            y2,
-            0,
-            0,
-            0,
-            0,
-            texSize,
-            texSize,
-            red,
-            green,
-            blue,
-            alpha,
-            0,
-            0,
-            0,
-            x2,
-            y1,
-            1,
-            1,
-            0,
-            0,
-            texSize,
-            texSize,
-            red,
-            green,
-            blue,
-            alpha,
-            0,
-            0,
-            0,
-            x2,
-            y2,
-            1,
-            0,
-            0,
-            0,
-            texSize,
-            texSize,
-            red,
-            green,
-            blue,
-            alpha,
-            0,
-            0,
-            0,
-            x1,
-            y2,
-            0,
-            0,
-            0,
-            0,
-            texSize,
-            texSize,
-            red,
-            green,
-            blue,
-            alpha,
-            0,
-            0,
-            0,
-          ]),
+          // prettier-ignore
+          new Float32Array([x1,y1,0,1,0,0,texSize,texSize,red,green,blue,alpha,0,0,0,x2,y1,1,1,0,0,texSize,texSize,red,green,blue,alpha,0,0,0,x1,y2,0,0,0,0,texSize,texSize,red,green,blue,alpha,0,0,0,x2,y1,1,1,0,0,texSize,texSize,red,green,blue,alpha,0,0,0,x2,y2,1,0,0,0,texSize,texSize,red,green,blue,alpha,0,0,0,x1,y2,0,0,0,0,texSize,texSize,red,green,blue,alpha,0,0,0]),
           gl.STATIC_DRAW,
         );
-        entities.push({
+        menuData.entities.push({
           type: msgtype === 5 ? "icon" : "bigicon",
           models,
           texture,
@@ -975,7 +934,7 @@
         gl.viewport(0, 0, minimapWidth, minimapHeight);
         gl.scissor(0, 0, minimapWidth, minimapHeight);
         gl.disable(gl.DEPTH_TEST);
-        const tex = textures[textureId];
+        const tex = menuData.textures[textureId];
         gl.useProgram(program2d);
         gl.uniform4fv(program2d_uAtlasWHScreenWH, [
           tex.width,
@@ -997,7 +956,7 @@
         gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
 
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-        entities.push({
+        menuData.entities.push({
           type: "minimap2d",
           textureId,
           vbo,
@@ -1032,101 +991,11 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         gl.bufferData(
           gl.ARRAY_BUFFER,
-          new Float32Array([
-            x1,
-            y1,
-            u1,
-            v2,
-            sourcex,
-            sourcey,
-            sourcew,
-            sourceh,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            x2,
-            y1,
-            u2,
-            v2,
-            sourcex,
-            sourcey,
-            sourcew,
-            sourceh,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            x1,
-            y2,
-            u1,
-            v1,
-            sourcex,
-            sourcey,
-            sourcew,
-            sourceh,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            x2,
-            y1,
-            u2,
-            v2,
-            sourcex,
-            sourcey,
-            sourcew,
-            sourceh,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            x2,
-            y2,
-            u2,
-            v1,
-            sourcex,
-            sourcey,
-            sourcew,
-            sourceh,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            x1,
-            y2,
-            u1,
-            v1,
-            sourcex,
-            sourcey,
-            sourcew,
-            sourceh,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-          ]),
+          // prettier-ignore
+          new Float32Array([x1,y1,u1,v2,sourcex,sourcey,sourcew,sourceh,1,1,1,1,0,0,0,x2,y1,u2,v2,sourcex,sourcey,sourcew,sourceh,1,1,1,1,0,0,0,x1,y2,u1,v1,sourcex,sourcey,sourcew,sourceh,1,1,1,1,0,0,0,x2,y1,u2,v2,sourcex,sourcey,sourcew,sourceh,1,1,1,1,0,0,0,x2,y2,u2,v1,sourcex,sourcey,sourcew,sourceh,1,1,1,1,0,0,0,x1,y2,u1,v1,sourcex,sourcey,sourcew,sourceh,1,1,1,1,0,0,0]),
           gl.STATIC_DRAW,
         );
-        entities.push({
+        menuData.entities.push({
           type: "minimap",
           sourcex,
           sourcey,
@@ -1210,7 +1079,7 @@
         const vbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
-        entities.push({
+        menuData.entities.push({
           type: "renderparticles",
           textureId,
           vertexCount,
@@ -1247,7 +1116,7 @@
     class="overflow-auto absolute w-50 h-full left-0 top-0 m-0 p-0 bg-slate-200"
   >
     <Menu
-      bind:entities
+      bind:data={menuData}
       redraw={() => {
         redraw(canvas!, gl!);
       }}
@@ -1267,5 +1136,18 @@
     class="absolute rounded-sm m-6 p-1 w-9 h-9 bg-gray-200 opacity-75 hover:opacity-100"
     alt="menu"
     onclick={() => (showMenu = true)}
+  />
+{/if}
+
+{#if menuData.selectedTexture}
+  <input
+    type="image"
+    src="plugin://app/images/xmark-solid.svg"
+    class="absolute right-0 rounded-sm m-4 p-1 w-8 h-8 bg-gray-200 opacity-75 hover:opacity-100"
+    alt="menu"
+    onclick={() => {
+      menuData.selectedTexture = null;
+      redraw(canvas!, gl!);
+    }}
   />
 {/if}
