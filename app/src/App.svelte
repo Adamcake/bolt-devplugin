@@ -12,6 +12,9 @@
     render3dAttribs,
     render3dAnimAttribs,
     renderParticlesAttribs,
+    vertexShaderSourceCheckers,
+    fragmentShaderSourceCheckers,
+    renderCheckersAttribs,
   } from "./shaders";
   import type { Buffer, Model, MenuData } from "./interfaces";
   import Menu from "./Menu.svelte";
@@ -89,6 +92,11 @@
   let programParticles_uProjMatrix: WebGLUniformLocation | null = null;
   let programParticles_uTex: WebGLUniformLocation | null = null;
   let programParticles_uAtlasWH: WebGLUniformLocation | null = null;
+
+  let programCheckers: WebGLProgram | null = null;
+  let programCheckers_uScreenWH: WebGLUniformLocation | null = null;
+
+  let checkersBuffer: Buffer | null = null;
 
   const params = new URLSearchParams(window.location.search);
   const n = params.get("n");
@@ -171,6 +179,18 @@
         vertexShaderSourceParticles,
         "particle vertex shader",
       );
+      const vertexShaderCheckers = compileShader(
+        gl,
+        gl.VERTEX_SHADER,
+        vertexShaderSourceCheckers,
+        "checkers vertex shader",
+      );
+      const fragmentShaderCheckers = compileShader(
+        gl,
+        gl.FRAGMENT_SHADER,
+        fragmentShaderSourceCheckers,
+        "checkers fragment shader",
+      );
 
       program2d = linkProgram(
         gl,
@@ -237,12 +257,25 @@
         "atlas_wh",
       );
 
+      programCheckers = linkProgram(
+        gl,
+        vertexShaderCheckers,
+        fragmentShaderCheckers,
+        "Checkers program",
+      );
+      programCheckers_uScreenWH = gl.getUniformLocation(
+        programCheckers,
+        "screen_wh",
+      );
+
       gl.deleteShader(vertexShader2d);
       gl.deleteShader(fragmentShader2d);
       gl.deleteShader(vertexShader3d);
       gl.deleteShader(fragmentShader3d);
       gl.deleteShader(vertexShaderAnim3d);
       gl.deleteShader(vertexShaderParticles);
+      gl.deleteShader(vertexShaderCheckers);
+      gl.deleteShader(fragmentShaderCheckers);
 
       gl.activeTexture(gl.TEXTURE0 + textureUnitID);
       gl.enable(gl.SCISSOR_TEST);
@@ -334,6 +367,25 @@
     }
 
     if (menuData.selectedTexture) {
+      gl.useProgram(programCheckers);
+      gl.uniform2fv(programCheckers_uScreenWH, [canvas.width, canvas.height]);
+      if (!checkersBuffer) {
+        const vbo1 = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo1);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          // prettier-ignore
+          new Float32Array([0,0,1,0,0,1,1,0,1,1,0,1]),
+          gl.STATIC_DRAW,
+        );
+        checkersBuffer = {
+          vbo: vbo1,
+          step: 8,
+          attribs: renderCheckersAttribs,
+        };
+      }
+      drawArraysFromEntityBuffer(gl, checkersBuffer, 6);
+
       const tex = menuData.selectedTexture;
       const screenRatio = canvas.width / canvas.height;
       const imageRatio = tex.width / tex.height;

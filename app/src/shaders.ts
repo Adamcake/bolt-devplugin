@@ -132,6 +132,33 @@ void main() {
 }
 `;
 
+export const vertexShaderSourceCheckers = `#version 300 es
+layout (location = 0) in highp vec2 in_xy;
+out highp vec2 xy;
+uniform highp vec2 screen_wh;
+void main() {
+    xy = in_xy;
+    gl_Position = vec4(
+        in_xy.x * 2.0 - 1.0,
+        in_xy.y * 2.0 - 1.0,
+        0.0,
+        1.0
+    );
+}
+`;
+
+export const fragmentShaderSourceCheckers = `#version 300 es
+in highp vec2 xy;
+out highp vec4 col;
+uniform highp vec2 screen_wh;
+void main() {
+    highp float xpixel = xy.x * screen_wh.s;
+    highp float ypixel = xy.y * screen_wh.t;
+    highp float rgb = mod(floor(xpixel / 24.0) + floor(ypixel / 24.0), 2.0) >= 1.0 ? 0.8 : 0.7;
+    col = vec4(rgb, rgb, rgb, 1.0);
+}
+`;
+
 export const batch2dAttribs: Attribute[] = [
   { count: 4, offset: 0 },
   { count: 4, offset: 16 },
@@ -165,6 +192,8 @@ export const renderParticlesAttribs: Attribute[] = [
   { count: 2, offset: 64 },
   { count: 4, offset: 12 },
 ];
+
+export const renderCheckersAttribs: Attribute[] = [{ count: 2, offset: 0 }];
 
 export const compileShader = (
   gl: WebGLRenderingContext,
