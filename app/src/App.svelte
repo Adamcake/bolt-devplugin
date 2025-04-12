@@ -368,6 +368,7 @@
 
     if (menuData.selectedTexture) {
       gl.useProgram(programCheckers);
+      gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2fv(programCheckers_uScreenWH, [canvas.width, canvas.height]);
       if (!checkersBuffer) {
         const vbo1 = gl.createBuffer();
@@ -409,7 +410,6 @@
       );
       gl.disable(gl.DEPTH_TEST);
       gl.useProgram(program2d);
-      gl.viewport(0, 0, windoww, windowh);
       gl.uniform4fv(program2d_uAtlasWHScreenWH, [
         tex.width,
         tex.height,
