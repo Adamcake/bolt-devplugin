@@ -1126,7 +1126,7 @@
     type="image"
     src="plugin://app/images/bars-solid.svg"
     class="absolute rounded-sm mx-61 my-6 p-1 w-9 h-9 bg-gray-200 opacity-75 hover:opacity-100"
-    alt="menu"
+    alt="hide menu"
     onclick={() => (showMenu = false)}
   />
 {:else if done}
@@ -1134,7 +1134,7 @@
     type="image"
     src="plugin://app/images/bars-solid.svg"
     class="absolute rounded-sm m-6 p-1 w-9 h-9 bg-gray-200 opacity-75 hover:opacity-100"
-    alt="menu"
+    alt="show menu"
     onclick={() => (showMenu = true)}
   />
 {/if}
@@ -1144,7 +1144,7 @@
     type="image"
     src="plugin://app/images/xmark-solid.svg"
     class="absolute right-0 rounded-sm m-4 p-1 w-8 h-8 bg-gray-200 opacity-75 hover:opacity-100"
-    alt="menu"
+    alt="close"
     onclick={() => {
       menuData.selectedTexture = null;
       redraw(canvas!, gl!);
