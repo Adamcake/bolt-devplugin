@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Entity, Texture, MenuData } from "./interfaces";
+  import type { Texture, MenuData } from "./interfaces";
   import MenuEntity from "./MenuEntity.svelte";
   import MenuCaret from "./MenuCaret.svelte";
 
@@ -12,27 +12,6 @@
       data.selectedTextureId = id;
       data.selectedTexture = tex;
     }
-    data.redraw();
-  };
-
-  let draggedEntity: Entity | null = null;
-  let draggedInitialChange: boolean = false;
-  let dragEnableState: boolean = false;
-  const dragStart = (entity: Entity) => {
-    draggedEntity = entity;
-    dragEnableState = !entity.enabled;
-  };
-  const dragEnd = () => {
-    draggedInitialChange = false;
-    draggedEntity = null;
-  };
-  const dragEnter = (entity: Entity) => {
-    if (!draggedEntity) return;
-    if (!draggedInitialChange) {
-      draggedEntity.enabled = dragEnableState;
-    }
-    entity.enabled = dragEnableState;
-    data = data;
     data.redraw();
   };
 </script>
@@ -61,7 +40,6 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class={`select-none m-0 border-none w-full ${i & 1 ? "bg-[#c4c4e4]" : "bg-[#b8b8d8]"}`}
-    ondragenter={() => dragEnter(entity)}
   >
     <MenuCaret
       bind:expanded={entity.expanded}

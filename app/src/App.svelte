@@ -295,6 +295,7 @@
     gl: WebGL2RenderingContext,
     buffer: Buffer,
     vertexCount: number,
+    enabledList?: boolean[],
   ) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer.vbo);
     for (let i = 0; i < maxAttribCount; i += 1) {
@@ -313,7 +314,29 @@
         attrib.offset,
       );
     }
-    gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+
+    // there's no list of enabled vertices, so draw all of them
+    if (!enabledList) {
+      gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+      return;
+    }
+
+    // only draw the enabled vertices
+    let nextStart: number | null = null;
+    for (let i = 0; i < vertexCount; i += 1) {
+      const enabled = enabledList[i];
+      if (nextStart === null) {
+        if (enabled) {
+          nextStart = i;
+        }
+      } else if (!enabled) {
+        gl.drawArrays(gl.TRIANGLES, nextStart, i - nextStart);
+        nextStart = null;
+      }
+    }
+    if (nextStart !== null) {
+      gl.drawArrays(gl.TRIANGLES, nextStart, vertexCount - nextStart);
+    }
   };
 
   const redraw = (canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) => {
@@ -460,7 +483,12 @@
         ]);
         gl.bindTexture(gl.TEXTURE_2D, tex.texture);
         gl.uniform1i(program2d_uTex, textureUnitID);
-        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
+        drawArraysFromEntityBuffer(
+          gl,
+          entity.buffer!,
+          entity.vertexCount!,
+          entity.enabledVerticesList,
+        );
       }
 
       if (entity.type === "render3d") {
@@ -774,6 +802,7 @@
           enabled: true,
           expanded: false,
           uuid: randomUUID(),
+          enabledVerticesList: Array(Math.floor(vertexCount)).fill(true),
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);

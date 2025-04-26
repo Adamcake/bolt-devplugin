@@ -13,6 +13,8 @@
     images: Image2D[];
     desc: string;
     expanded: boolean;
+    vertexRangeStart: number;
+    vertexRangeEnd: number;
   }
 
   function isImageSublist(
@@ -30,6 +32,7 @@
       vertices.length >= sublistMinimumImages * verticesPerImage;
     images2d = [];
     let sublist: Image2D[] = [];
+    let sublistFirstVertex = 0;
     for (
       let i = 0;
       i < vertices.length - (verticesPerImage - 1);
@@ -63,13 +66,22 @@
         b: firstVertex.b,
         a: firstVertex.a,
         expanded: false,
+        index: image2dCount,
       };
       if (useSublist) {
         sublist.push(image);
         if (sublist.length >= sublistMaxImageCount) {
           const desc = `${images2d.length * sublistMaxImageCount}-${images2d.length * sublistMaxImageCount + sublist.length - 1}`;
-          images2d.push({ images: sublist, desc, expanded: false });
+          const vertexRangeEnd = i + verticesPerImage;
+          images2d.push({
+            images: sublist,
+            desc,
+            expanded: false,
+            vertexRangeStart: sublistFirstVertex,
+            vertexRangeEnd,
+          });
           sublist = [];
+          sublistFirstVertex = vertexRangeEnd;
         }
       } else {
         images2d.push(image);
@@ -78,7 +90,13 @@
     }
     if (sublist.length > 0) {
       const desc = `${images2d.length * sublistMaxImageCount}-${images2d.length * sublistMaxImageCount + sublist.length - 1}`;
-      images2d.push({ images: sublist, desc, expanded: false });
+      images2d.push({
+        images: sublist,
+        desc,
+        expanded: false,
+        vertexRangeStart: sublistFirstVertex,
+        vertexRangeEnd: vertices.length,
+      });
     }
   }
 </script>
@@ -112,6 +130,23 @@
         {#if isImageSublist(item)}
           <MenuCaret
             bind:expanded={item.expanded}
+            bind:checked={
+              () =>
+                item.images.every(
+                  (x) =>
+                    entity.enabledVerticesList![x.index * verticesPerImage],
+                ),
+              (b: boolean) => {
+                for (
+                  let x = item.vertexRangeStart;
+                  x < item.vertexRangeEnd;
+                  x += 1
+                ) {
+                  entity.enabledVerticesList![x] = b;
+                }
+              }
+            }
+            oncheckedchange={menuData.redraw}
             id={`${entity.uuid}-images-${item.desc}`}
             text={`[Images ${item.desc}]`}
           />
@@ -120,6 +155,20 @@
               {#each item.images as image, j}
                 <MenuCaret
                   bind:expanded={image.expanded}
+                  bind:checked={
+                    () =>
+                      entity.enabledVerticesList![
+                        image.index * verticesPerImage
+                      ],
+                    (b: boolean) => {
+                      for (let x = 0; x < verticesPerImage; x += 1) {
+                        entity.enabledVerticesList![
+                          image.index * verticesPerImage + x
+                        ] = b;
+                      }
+                    }
+                  }
+                  oncheckedchange={menuData.redraw}
                   id={`${entity.uuid}-images-${item.desc}-${j}`}
                   text={`Image ${i * sublistMaxImageCount + j}`}
                 />
@@ -132,6 +181,17 @@
         {:else}
           <MenuCaret
             bind:expanded={item.expanded}
+            bind:checked={
+              () => entity.enabledVerticesList![item.index * verticesPerImage],
+              (b: boolean) => {
+                for (let x = 0; x < verticesPerImage; x += 1) {
+                  entity.enabledVerticesList![
+                    item.index * verticesPerImage + x
+                  ] = b;
+                }
+              }
+            }
+            oncheckedchange={menuData.redraw}
             id={`${entity.uuid}-images-${i}`}
             text={`Image ${i}`}
           />

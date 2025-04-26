@@ -24,6 +24,7 @@ export interface Entity {
   enabled: boolean;
   expanded: boolean;
   uuid: string;
+  enabledVerticesList?: boolean[];
 }
 
 export interface Texture {
@@ -90,4 +91,5 @@ export interface Image2D {
   b: GLfloat;
   a: GLfloat;
   expanded: boolean;
+  index: number;
 }
