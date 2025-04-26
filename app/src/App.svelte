@@ -18,12 +18,14 @@
   } from "./shaders";
   import type { Buffer, Model, MenuData } from "./interfaces";
   import Menu from "./Menu.svelte";
+  import { v4 as randomUUID } from "uuid";
 
   let menuData: MenuData = {
     textures: {},
     entities: [],
     selectedTexture: null,
     selectedTextureId: "",
+    redraw: () => redraw(canvas!, gl!),
   };
 
   const getNumberParam = (s: string): number => {
@@ -695,6 +697,8 @@
             attribs: animated ? render3dAnimAttribs : render3dAttribs,
           },
           enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -768,6 +772,8 @@
             attribs: batch2dAttribs,
           },
           enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -900,6 +906,8 @@
             attribs: batch2dAttribs,
           },
           enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
         });
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
         gl.deleteFramebuffer(fb);
@@ -1014,6 +1022,8 @@
           vbo,
           vertices,
           enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -1065,6 +1075,8 @@
             attribs: batch2dAttribs,
           },
           enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
         });
         redraw(canvas, gl);
         break;
@@ -1143,6 +1155,8 @@
             attribs: renderParticlesAttribs,
           },
           enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
@@ -1165,14 +1179,9 @@
 <canvas bind:this={canvas} class="absolute right-0"></canvas>
 {#if showMenu}
   <div
-    class="overflow-auto absolute w-50 h-full left-0 top-0 m-0 p-0 bg-slate-200"
+    class="overflow-auto absolute w-56 h-full left-0 top-0 m-0 p-0 bg-slate-200"
   >
-    <Menu
-      bind:data={menuData}
-      redraw={() => {
-        redraw(canvas!, gl!);
-      }}
-    />
+    <Menu bind:data={menuData} />
   </div>
   <input
     type="image"

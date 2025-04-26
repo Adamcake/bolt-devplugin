@@ -22,6 +22,8 @@ export interface Entity {
   targetw?: number;
   targeth?: number;
   enabled: boolean;
+  expanded: boolean;
+  uuid: string;
 }
 
 export interface Texture {
@@ -71,4 +73,21 @@ export interface MenuData {
   textures: Record<number, Texture>;
   selectedTexture: Texture | null;
   selectedTextureId: string;
+  redraw: () => void;
+}
+
+export interface Image2D {
+  x: GLfloat;
+  y: GLfloat;
+  w: GLfloat;
+  h: GLfloat;
+  ax: GLfloat;
+  ay: GLfloat;
+  aw: GLfloat;
+  ah: GLfloat;
+  r: GLfloat;
+  g: GLfloat;
+  b: GLfloat;
+  a: GLfloat;
+  expanded: boolean;
 }

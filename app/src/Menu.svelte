@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { Entity, Texture, MenuData } from "./interfaces";
+  import MenuEntity from "./MenuEntity.svelte";
+  import MenuCaret from "./MenuCaret.svelte";
 
   export let data: MenuData;
-  export let redraw: () => void;
 
   const selectTexture = (id: string, tex: Texture) => {
     if (data.selectedTexture === tex) {
@@ -11,7 +12,7 @@
       data.selectedTextureId = id;
       data.selectedTexture = tex;
     }
-    redraw();
+    data.redraw();
   };
 
   let draggedEntity: Entity | null = null;
@@ -32,7 +33,7 @@
     }
     entity.enabled = dragEnableState;
     data = data;
-    redraw();
+    data.redraw();
   };
 </script>
 
@@ -48,7 +49,7 @@
         : "bg-slate-300 hover:bg-slate-400 w-full"}
       onclick={() => selectTexture(id, texture)}
     >
-      {id}
+      #{id}
     </button>
   </div>
 {/each}
@@ -59,25 +60,18 @@
 {#each data.entities as entity, i}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="static select-none m-0 border-none w-full"
+    class={`select-none m-0 border-none w-full ${i & 1 ? "bg-[#c4c4e4]" : "bg-[#b8b8d8]"}`}
     ondragenter={() => dragEnter(entity)}
   >
-    <input
-      draggable={true}
+    <MenuCaret
+      bind:expanded={entity.expanded}
       id={`menu${i}`}
-      class="ml-1"
-      type="checkbox"
+      text={entity.type}
       bind:checked={entity.enabled}
-      onchange={redraw}
-      ondragstart={() => dragStart(entity)}
-      ondragend={dragEnd}
+      oncheckedchange={data.redraw}
     />
-    <label
-      draggable={true}
-      for={`menu${i}`}
-      ondragstart={() => dragStart(entity)}
-      ondragend={dragEnd}>{entity.type}</label
-    >
-    <br />
+    {#if entity.expanded}
+      <MenuEntity bind:entity bind:menuData={data}></MenuEntity>
+    {/if}
   </div>
 {/each}
