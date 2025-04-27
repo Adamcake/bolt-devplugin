@@ -896,8 +896,7 @@
         gl.enable(gl.CULL_FACE);
         gl.cullFace(gl.FRONT);
         gl.viewport(0, 0, texSize, texSize);
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.scissor(0, 0, texSize, texSize);
 
         let models: Model[] = Array(modelcount);
         let cursor = 36;
