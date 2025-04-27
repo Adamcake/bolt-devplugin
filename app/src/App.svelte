@@ -461,6 +461,13 @@
       return;
     }
 
+    if (minimapfb) {
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    }
+
     gl.disable(gl.SCISSOR_TEST);
     for (let entity of menuData.entities) {
       if (!entity.enabled) continue;
@@ -574,6 +581,56 @@
         drawArraysFromEntityBuffer(gl, entity.buffer!, 6);
       }
 
+      if (entity.type === "minimap2d") {
+        if (!minimaptex || !minimapfb) {
+          minimaptex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, minimaptex);
+          gl.texStorage2D(
+            gl.TEXTURE_2D,
+            1,
+            gl.RGBA8,
+            minimapWidth,
+            minimapHeight,
+          );
+          minimapfb = gl.createFramebuffer();
+          gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
+          gl.framebufferTexture2D(
+            gl.DRAW_FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            minimaptex,
+            0,
+          );
+        } else {
+          gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
+        }
+
+        gl.viewport(0, 0, minimapWidth, minimapHeight);
+        gl.disable(gl.DEPTH_TEST);
+        const tex = menuData.textures[entity.textureId!];
+        gl.useProgram(program2d);
+        gl.uniform4fv(program2d_uAtlasWHScreenWH, [
+          tex.width,
+          tex.height,
+          minimapWidth,
+          minimapHeight,
+        ]);
+        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo!);
+        gl.uniform1i(program2d_uTex, textureUnitID);
+        for (let i = 0; i < maxAttribCount; i += 1) {
+          i < 4
+            ? gl.enableVertexAttribArray(i)
+            : gl.disableVertexAttribArray(i);
+        }
+        gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
+        gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
+        gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
+        gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
+        gl.drawArrays(gl.TRIANGLES, 0, entity.vertices!.length);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      }
+
       if (entity.type === "minimap") {
         if (minimaptex === null) continue;
         gl.blendFuncSeparate(
@@ -585,6 +642,7 @@
         gl.disable(gl.DEPTH_TEST);
         gl.useProgram(program2d);
         gl.viewport(0, 0, windoww, windowh);
+
         gl.uniform4fv(program2d_uAtlasWHScreenWH, [
           minimapWidth,
           minimapHeight,
@@ -835,7 +893,6 @@
           texture,
           0,
         );
-        gl.disable(gl.SCISSOR_TEST);
         gl.enable(gl.CULL_FACE);
         gl.cullFace(gl.FRONT);
         gl.viewport(0, 0, texSize, texSize);
@@ -996,55 +1053,6 @@
         }
         gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
 
-        if (!minimaptex || !minimapfb) {
-          minimaptex = gl.createTexture();
-          gl.bindTexture(gl.TEXTURE_2D, minimaptex);
-          gl.texStorage2D(
-            gl.TEXTURE_2D,
-            1,
-            gl.RGBA8,
-            minimapWidth,
-            minimapHeight,
-          );
-          minimapfb = gl.createFramebuffer();
-          gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
-          gl.framebufferTexture2D(
-            gl.DRAW_FRAMEBUFFER,
-            gl.COLOR_ATTACHMENT0,
-            gl.TEXTURE_2D,
-            minimaptex,
-            0,
-          );
-          gl.bindTexture(gl.TEXTURE_2D, null);
-        } else {
-          gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, minimapfb);
-        }
-
-        gl.viewport(0, 0, minimapWidth, minimapHeight);
-        gl.scissor(0, 0, minimapWidth, minimapHeight);
-        gl.disable(gl.DEPTH_TEST);
-        const tex = menuData.textures[textureId];
-        gl.useProgram(program2d);
-        gl.uniform4fv(program2d_uAtlasWHScreenWH, [
-          tex.width,
-          tex.height,
-          minimapWidth,
-          minimapHeight,
-        ]);
-        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-        gl.uniform1i(program2d_uTex, textureUnitID);
-        for (let i = 0; i < maxAttribCount; i += 1) {
-          i < 4
-            ? gl.enableVertexAttribArray(i)
-            : gl.disableVertexAttribArray(i);
-        }
-        gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
-        gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
-        gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
-        gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
-        gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
-
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
         menuData.entities.push({
           type: "minimap2d",
           textureId,
@@ -1059,7 +1067,6 @@
         break;
       }
       case 7: {
-        if (!minimaptex) break;
         const sourcex = arr.getInt16(4, true);
         const sourcey = arr.getInt16(6, true);
         const sourcew = arr.getUint16(8, true);
