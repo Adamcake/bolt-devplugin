@@ -616,18 +616,8 @@
           minimapHeight,
         ]);
         gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-        gl.bindBuffer(gl.ARRAY_BUFFER, entity.vbo!);
         gl.uniform1i(program2d_uTex, textureUnitID);
-        for (let i = 0; i < maxAttribCount; i += 1) {
-          i < 4
-            ? gl.enableVertexAttribArray(i)
-            : gl.disableVertexAttribArray(i);
-        }
-        gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 60, 0);
-        gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 60, 16);
-        gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 60, 32);
-        gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 60, 48);
-        gl.drawArrays(gl.TRIANGLES, 0, entity.vertices!.length);
+        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
       }
 
@@ -954,16 +944,11 @@
           gl.uniform2fv(program3d_uAtlasWH, [1, 1]);
           gl.bindTexture(gl.TEXTURE_2D, whitePixelTex);
           gl.uniform1i(program3d_uTex, textureUnitID);
-          for (let i = 0; i < maxAttribCount; i += 1) {
-            i < 4
-              ? gl.enableVertexAttribArray(i)
-              : gl.disableVertexAttribArray(i);
-          }
-          gl.vertexAttribPointer(0, 4, gl.FLOAT, false, step, 0);
-          gl.vertexAttribPointer(1, 2, gl.FLOAT, false, step, 16);
-          gl.vertexAttribPointer(2, 4, gl.FLOAT, false, step, 24);
-          gl.vertexAttribPointer(3, 4, gl.FLOAT, false, step, 40);
-          gl.drawArrays(gl.TRIANGLES, 0, vertexcount);
+          drawArraysFromEntityBuffer(
+            gl,
+            { vbo: buffer, attribs: render3dAttribs, step },
+            vertexcount,
+          );
           gl.deleteBuffer(buffer);
         }
         const x1 = targetx;
@@ -1055,8 +1040,13 @@
         menuData.entities.push({
           type: "minimap2d",
           textureId,
-          vbo,
+          buffer: {
+            vbo,
+            attribs: batch2dAttribs,
+            step: 60,
+          },
           vertices,
+          vertexCount,
           enabled: true,
           expanded: false,
           uuid: randomUUID(),

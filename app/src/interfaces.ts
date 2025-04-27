@@ -12,7 +12,6 @@ export interface Entity {
   texSize?: GLfloat;
   vertices?: Vertex[];
   models?: Model[];
-  vbo?: WebGLBuffer;
   sourcex?: number;
   sourcey?: number;
   sourcew?: number;
