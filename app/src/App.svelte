@@ -617,7 +617,12 @@
         ]);
         gl.bindTexture(gl.TEXTURE_2D, tex.texture);
         gl.uniform1i(program2d_uTex, textureUnitID);
-        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!);
+        drawArraysFromEntityBuffer(
+          gl,
+          entity.buffer!,
+          entity.vertexCount!,
+          entity.enabledVerticesList,
+        );
         gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
       }
 
@@ -1049,6 +1054,7 @@
           vertexCount,
           enabled: true,
           expanded: false,
+          enabledVerticesList: Array(Math.floor(vertexCount)).fill(true),
           uuid: randomUUID(),
         });
         receivedVertices += vertexCount;

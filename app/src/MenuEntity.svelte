@@ -25,7 +25,7 @@
 
   let images2d: (Image2D | ImageSublist)[] | null = null;
   let image2dCount = 0;
-  if (entity.type === "batch2d") {
+  if (entity.type === "batch2d" || entity.type === "minimap2d") {
     const vertices = entity.vertices!;
     const sublistMinimumImages = sublistMaxImageCount * 2;
     const useSublist =
