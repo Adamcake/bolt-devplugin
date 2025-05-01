@@ -38,3 +38,8 @@ export function createSublists<T1, T2, S>(
       .toArray();
   }
 }
+
+// [0.0-1.0] -> [0-255]
+export function roundTo255(n: number): number {
+  return Math.round(n * 255.0);
+}

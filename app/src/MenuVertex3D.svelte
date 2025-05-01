@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { VertexData3D } from "./interfaces";
+  import { roundTo255 } from "./functions";
 
   export let vertex: VertexData3D;
 </script>
@@ -14,9 +15,7 @@
   <br />
   uv: {vertex.u.toPrecision(4)}, {vertex.v.toPrecision(4)}
   <br />
-  rgb: {vertex.r.toPrecision(4)}, {vertex.g.toPrecision(4)}, {vertex.b.toPrecision(
-    4,
-  )}
+  rgb: {roundTo255(vertex.r)}, {roundTo255(vertex.g)}, {roundTo255(vertex.b)}
   <br />
   alpha: {vertex.a.toPrecision(4)}
   <br />
