@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Image2D } from "./interfaces";
+  import type { ImageData2D } from "./interfaces";
 
-  export let image: Image2D;
+  export let image: ImageData2D;
 </script>
 
 <div class="ml-4 w-full">

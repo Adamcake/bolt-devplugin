@@ -1,37 +1,59 @@
 <script lang="ts">
-  import type { Entity, MenuData, Image2D } from "./interfaces";
+  import type {
+    Entity,
+    MenuData,
+    ImageData2D,
+    VertexData3D,
+  } from "./interfaces";
   import MenuCaret from "./MenuCaret.svelte";
   import MenuImage2D from "./MenuImage2D.svelte";
+  import MenuVertex3D from "./MenuVertex3D.svelte";
   export let entity: Entity;
   export let menuData: MenuData;
 
   const verticesPerImage = 6;
-  const sublistMaxImageCount = 100;
-  let expanded = false;
+  const sublistMaxItemCount = 100;
+
+  let expandedImages = false;
+  let expandedVertices = false;
 
   interface ImageSublist {
-    images: Image2D[];
+    images: ImageData2D[];
     desc: string;
     expanded: boolean;
     vertexRangeStart: number;
     vertexRangeEnd: number;
   }
 
+  interface VertexSublist {
+    vertices: VertexData3D[];
+    desc: string;
+    expanded: boolean;
+  }
+
   function isImageSublist(
-    object: Image2D | ImageSublist,
+    object: ImageData2D | ImageSublist,
   ): object is ImageSublist {
     return "images" in object;
   }
 
-  let images2d: (Image2D | ImageSublist)[] | null = null;
+  function isVertexSublist(
+    object: VertexData3D | VertexSublist,
+  ): object is VertexSublist {
+    return "vertices" in object;
+  }
+
+  let images2d: (ImageData2D | ImageSublist)[] | null = null;
   let image2dCount = 0;
+  let vertices3d: (VertexData3D | VertexSublist)[] | null = null;
+  let vertex3dCount = 0;
   if (entity.type === "batch2d" || entity.type === "minimap2d") {
     const vertices = entity.vertices!;
-    const sublistMinimumImages = sublistMaxImageCount * 2;
+    const sublistMinimumImages = sublistMaxItemCount * 2;
     const useSublist =
       vertices.length >= sublistMinimumImages * verticesPerImage;
     images2d = [];
-    let sublist: Image2D[] = [];
+    let sublist: ImageData2D[] = [];
     let sublistFirstVertex = 0;
     for (
       let i = 0;
@@ -52,7 +74,7 @@
         if (vertex.y > y2) y2 = vertex.y;
       }
 
-      const image: Image2D = {
+      const image: ImageData2D = {
         x: x1,
         y: y1,
         w: x2 - x1,
@@ -70,8 +92,8 @@
       };
       if (useSublist) {
         sublist.push(image);
-        if (sublist.length >= sublistMaxImageCount) {
-          const desc = `${images2d.length * sublistMaxImageCount}-${images2d.length * sublistMaxImageCount + sublist.length - 1}`;
+        if (sublist.length >= sublistMaxItemCount) {
+          const desc = `${images2d.length * sublistMaxItemCount}-${images2d.length * sublistMaxItemCount + sublist.length - 1}`;
           const vertexRangeEnd = i + verticesPerImage;
           images2d.push({
             images: sublist,
@@ -89,13 +111,58 @@
       image2dCount += 1;
     }
     if (sublist.length > 0) {
-      const desc = `${images2d.length * sublistMaxImageCount}-${images2d.length * sublistMaxImageCount + sublist.length - 1}`;
+      const desc = `${images2d.length * sublistMaxItemCount}-${images2d.length * sublistMaxItemCount + sublist.length - 1}`;
       images2d.push({
         images: sublist,
         desc,
         expanded: false,
         vertexRangeStart: sublistFirstVertex,
         vertexRangeEnd: vertices.length,
+      });
+    }
+  } else if (entity.vertices) {
+    const sublistMinimumVertices = sublistMaxItemCount * 2;
+    const useSublist = entity.vertices.length >= sublistMinimumVertices;
+    vertices3d = [];
+    let sublist: VertexData3D[] = [];
+    let sublistFirstVertex = 0;
+    for (
+      let i = 0;
+      i < entity.vertices.length - (verticesPerImage - 1);
+      i += verticesPerImage
+    ) {
+      const vertex = entity.vertices[i];
+
+      const vertexData: VertexData3D = {
+        modelpoint: entity.type !== "renderparticles" ? { ...vertex } : null,
+        expanded: false,
+        index: vertex3dCount,
+        ...vertex,
+      };
+      if (useSublist) {
+        sublist.push(vertexData);
+        if (sublist.length >= sublistMaxItemCount) {
+          const desc = `${vertices3d.length * sublistMaxItemCount}-${vertices3d.length * sublistMaxItemCount + sublist.length - 1}`;
+          const vertexRangeEnd = i + verticesPerImage;
+          vertices3d.push({
+            vertices: sublist,
+            desc,
+            expanded: false,
+          });
+          sublist = [];
+          sublistFirstVertex = vertexRangeEnd;
+        }
+      } else {
+        vertices3d.push(vertexData);
+      }
+      vertex3dCount += 1;
+    }
+    if (sublist.length > 0) {
+      const desc = `${vertices3d.length * sublistMaxItemCount}-${vertices3d.length * sublistMaxItemCount + sublist.length - 1}`;
+      vertices3d.push({
+        vertices: sublist,
+        desc,
+        expanded: false,
       });
     }
   }
@@ -121,11 +188,11 @@
 
   {#if images2d && image2dCount}
     <MenuCaret
-      bind:expanded
+      bind:expanded={expandedImages}
       id={`${entity.uuid}-images2d`}
       text={`2D images (${image2dCount})`}
     />
-    {#if expanded}
+    {#if expandedImages}
       {#each images2d as item, i}
         {#if isImageSublist(item)}
           <MenuCaret
@@ -170,7 +237,7 @@
                   }
                   oncheckedchange={menuData.redraw}
                   id={`${entity.uuid}-images-${item.desc}-${j}`}
-                  text={`Image ${i * sublistMaxImageCount + j}`}
+                  text={`Image ${i * sublistMaxItemCount + j}`}
                 />
                 {#if image.expanded}
                   <MenuImage2D {image} />
@@ -197,6 +264,48 @@
           />
           {#if item.expanded}
             <MenuImage2D image={item} />
+          {/if}
+        {/if}
+      {/each}
+    {/if}
+  {/if}
+
+  {#if vertices3d && vertex3dCount}
+    <MenuCaret
+      bind:expanded={expandedVertices}
+      id={`${entity.uuid}-vertices3d`}
+      text={`3D vertices (${vertex3dCount})`}
+    />
+    {#if expandedVertices}
+      {#each vertices3d as item, i}
+        {#if isVertexSublist(item)}
+          <MenuCaret
+            bind:expanded={item.expanded}
+            id={`${entity.uuid}-vertices-${item.desc}`}
+            text={`[Vertices ${item.desc}]`}
+          />
+          {#if item.expanded}
+            <div class="ml-2">
+              {#each item.vertices as vertex, j}
+                <MenuCaret
+                  bind:expanded={vertex.expanded}
+                  id={`${entity.uuid}-vertices-${item.desc}-${j}`}
+                  text={`Vertex ${i * sublistMaxItemCount + j}`}
+                />
+                {#if vertex.expanded}
+                  <MenuVertex3D {vertex} />
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        {:else}
+          <MenuCaret
+            bind:expanded={item.expanded}
+            id={`${entity.uuid}-vertices-${i}`}
+            text={`Vertex ${i}`}
+          />
+          {#if item.expanded}
+            <MenuVertex3D vertex={item} />
           {/if}
         {/if}
       {/each}

@@ -76,11 +76,33 @@ export interface MenuData {
   redraw: () => void;
 }
 
-export interface Image2D {
+export interface Point3D {
+  x: GLfloat;
+  y: GLfloat;
+  z: GLfloat;
+}
+
+export interface ImageData2D {
   x: GLfloat;
   y: GLfloat;
   w: GLfloat;
   h: GLfloat;
+  ax: GLfloat;
+  ay: GLfloat;
+  aw: GLfloat;
+  ah: GLfloat;
+  r: GLfloat;
+  g: GLfloat;
+  b: GLfloat;
+  a: GLfloat;
+  expanded: boolean;
+  index: number;
+}
+
+export interface VertexData3D {
+  modelpoint: Point3D | null;
+  u: GLfloat;
+  v: GLfloat;
   ax: GLfloat;
   ay: GLfloat;
   aw: GLfloat;
