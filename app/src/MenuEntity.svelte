@@ -2,9 +2,11 @@
   import type {
     Entity,
     MenuData,
+    Vertex,
     ImageData2D,
     VertexData3D,
   } from "./interfaces";
+  import { chunksExact, createSublists } from "./functions";
   import MenuCaret from "./MenuCaret.svelte";
   import MenuImage2D from "./MenuImage2D.svelte";
   import MenuVertex3D from "./MenuVertex3D.svelte";
@@ -43,128 +45,106 @@
     return "vertices" in object;
   }
 
-  let images2d: (ImageData2D | ImageSublist)[] | null = null;
+  const createImage = (vertices: Vertex[], index: number): ImageData2D => {
+    const firstVertex = vertices[0];
+    let x1: number = firstVertex.x;
+    let x2: number = firstVertex.x;
+    let y1: number = firstVertex.y;
+    let y2: number = firstVertex.y;
+
+    for (const vertex of vertices) {
+      if (vertex.x < x1) x1 = vertex.x;
+      if (vertex.x > x2) x2 = vertex.x;
+      if (vertex.y < y1) y1 = vertex.y;
+      if (vertex.y > y2) y2 = vertex.y;
+    }
+
+    return {
+      x: x1,
+      y: y1,
+      w: x2 - x1,
+      h: y2 - y1,
+      ax: firstVertex.ax,
+      ay: firstVertex.ay,
+      aw: firstVertex.aw,
+      ah: firstVertex.ah,
+      r: firstVertex.r,
+      g: firstVertex.g,
+      b: firstVertex.b,
+      a: firstVertex.a,
+      expanded: false,
+      index,
+    };
+  };
+
+  const createImageSublist = (
+    list: ImageData2D[],
+    index: number,
+  ): ImageSublist => {
+    const startIndex = index * sublistMaxItemCount;
+    const vertexRangeStart = startIndex * verticesPerImage;
+    return {
+      images: list,
+      desc: `${startIndex}-${startIndex + list.length - 1}`,
+      expanded: false,
+      vertexRangeStart,
+      vertexRangeEnd: vertexRangeStart + list.length * verticesPerImage,
+    };
+  };
+
+  const createVertex = (vertex: Vertex, index: number): VertexData3D => {
+    return {
+      modelpoint: { ...vertex },
+      expanded: false,
+      index,
+      ...vertex,
+    };
+  };
+
+  const createWorldVertex = (vertex: Vertex, index: number): VertexData3D => {
+    return {
+      modelpoint: null,
+      expanded: false,
+      index,
+      ...vertex,
+    };
+  };
+
+  const createVertexSublist = (
+    list: VertexData3D[],
+    index: number,
+  ): VertexSublist => {
+    const startIndex = index * sublistMaxItemCount;
+    return {
+      vertices: list,
+      desc: `${startIndex}-${startIndex + list.length - 1}`,
+      expanded: false,
+    };
+  };
+
+  let images2d: ImageData2D[] | ImageSublist[] | null = null;
   let image2dCount = 0;
-  let vertices3d: (VertexData3D | VertexSublist)[] | null = null;
+  let vertices3d: VertexData3D[] | VertexSublist[] | null = null;
   let vertex3dCount = 0;
   if (entity.type === "batch2d" || entity.type === "minimap2d") {
-    const vertices = entity.vertices!;
-    const sublistMinimumImages = sublistMaxItemCount * 2;
-    const useSublist =
-      vertices.length >= sublistMinimumImages * verticesPerImage;
-    images2d = [];
-    let sublist: ImageData2D[] = [];
-    let sublistFirstVertex = 0;
-    for (
-      let i = 0;
-      i < vertices.length - (verticesPerImage - 1);
-      i += verticesPerImage
-    ) {
-      const firstVertex = vertices[i];
-      let x1: number = firstVertex.x;
-      let x2: number = firstVertex.x;
-      let y1: number = firstVertex.y;
-      let y2: number = firstVertex.y;
-
-      for (let j = 1; j < verticesPerImage; j += 1) {
-        const vertex = vertices[i + j];
-        if (vertex.x < x1) x1 = vertex.x;
-        if (vertex.x > x2) x2 = vertex.x;
-        if (vertex.y < y1) y1 = vertex.y;
-        if (vertex.y > y2) y2 = vertex.y;
-      }
-
-      const image: ImageData2D = {
-        x: x1,
-        y: y1,
-        w: x2 - x1,
-        h: y2 - y1,
-        ax: firstVertex.ax,
-        ay: firstVertex.ay,
-        aw: firstVertex.aw,
-        ah: firstVertex.ah,
-        r: firstVertex.r,
-        g: firstVertex.g,
-        b: firstVertex.b,
-        a: firstVertex.a,
-        expanded: false,
-        index: image2dCount,
-      };
-      if (useSublist) {
-        sublist.push(image);
-        if (sublist.length >= sublistMaxItemCount) {
-          const desc = `${images2d.length * sublistMaxItemCount}-${images2d.length * sublistMaxItemCount + sublist.length - 1}`;
-          const vertexRangeEnd = i + verticesPerImage;
-          images2d.push({
-            images: sublist,
-            desc,
-            expanded: false,
-            vertexRangeStart: sublistFirstVertex,
-            vertexRangeEnd,
-          });
-          sublist = [];
-          sublistFirstVertex = vertexRangeEnd;
-        }
-      } else {
-        images2d.push(image);
-      }
-      image2dCount += 1;
-    }
-    if (sublist.length > 0) {
-      const desc = `${images2d.length * sublistMaxItemCount}-${images2d.length * sublistMaxItemCount + sublist.length - 1}`;
-      images2d.push({
-        images: sublist,
-        desc,
-        expanded: false,
-        vertexRangeStart: sublistFirstVertex,
-        vertexRangeEnd: vertices.length,
-      });
-    }
+    const list = [...chunksExact(entity.vertices!, verticesPerImage)];
+    image2dCount = list.length;
+    images2d = createSublists(
+      list,
+      sublistMaxItemCount,
+      createImage,
+      createImageSublist,
+    );
   } else if (entity.vertices) {
-    const sublistMinimumVertices = sublistMaxItemCount * 2;
-    const useSublist = entity.vertices.length >= sublistMinimumVertices;
-    vertices3d = [];
-    let sublist: VertexData3D[] = [];
-    let sublistFirstVertex = 0;
-    for (
-      let i = 0;
-      i < entity.vertices.length - (verticesPerImage - 1);
-      i += verticesPerImage
-    ) {
-      const vertex = entity.vertices[i];
-
-      const vertexData: VertexData3D = {
-        modelpoint: entity.type !== "renderparticles" ? { ...vertex } : null,
-        expanded: false,
-        index: vertex3dCount,
-        ...vertex,
-      };
-      if (useSublist) {
-        sublist.push(vertexData);
-        if (sublist.length >= sublistMaxItemCount) {
-          const desc = `${vertices3d.length * sublistMaxItemCount}-${vertices3d.length * sublistMaxItemCount + sublist.length - 1}`;
-          const vertexRangeEnd = i + verticesPerImage;
-          vertices3d.push({
-            vertices: sublist,
-            desc,
-            expanded: false,
-          });
-          sublist = [];
-          sublistFirstVertex = vertexRangeEnd;
-        }
-      } else {
-        vertices3d.push(vertexData);
-      }
-      vertex3dCount += 1;
-    }
-    if (sublist.length > 0) {
-      const desc = `${vertices3d.length * sublistMaxItemCount}-${vertices3d.length * sublistMaxItemCount + sublist.length - 1}`;
-      vertices3d.push({
-        vertices: sublist,
-        desc,
-        expanded: false,
-      });
-    }
+    const convert =
+      entity.type !== "renderparticles" ? createVertex : createWorldVertex;
+    vertex3dCount = entity.vertices.length;
+    vertices3d = createSublists(
+      entity.vertices,
+      sublistMaxItemCount,
+      convert,
+      createVertexSublist,
+    );
   }
 </script>
 
