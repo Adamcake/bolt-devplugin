@@ -4,7 +4,7 @@
   export let image: ImageData2D;
 </script>
 
-<div class="ml-4 w-full">
+<div class="ml-2 w-full">
   screen: {image.x},{image.y}
   {image.w}x{image.h}
   <br />

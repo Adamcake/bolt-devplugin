@@ -4,7 +4,7 @@
   export let vertex: ModelVertexData;
 </script>
 
-<div class="ml-4 w-full">
+<div class="ml-2 w-full">
   model: {vertex.modelpoint.x},{vertex.modelpoint.y},{vertex.modelpoint.z}
   <br />
   rgb: {vertex.r.toPrecision(4)}, {vertex.g.toPrecision(4)}, {vertex.b.toPrecision(

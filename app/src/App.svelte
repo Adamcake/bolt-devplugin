@@ -1214,7 +1214,7 @@
 <canvas bind:this={canvas} class="absolute right-0"></canvas>
 {#if showMenu}
   <div
-    class="overflow-auto absolute w-56 h-full left-0 top-0 m-0 p-0 bg-slate-200"
+    class="overflow-auto absolute w-60 h-full left-0 top-0 m-0 p-0 bg-slate-200"
   >
     <Menu bind:data={menuData} />
   </div>

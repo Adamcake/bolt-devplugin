@@ -4,7 +4,7 @@
   export let vertex: VertexData3D;
 </script>
 
-<div class="ml-4 w-full">
+<div class="ml-2 w-full">
   {#if vertex.modelpoint}
     model: {vertex.modelpoint.x},{vertex.modelpoint.y},{vertex.modelpoint.z}
     <br />

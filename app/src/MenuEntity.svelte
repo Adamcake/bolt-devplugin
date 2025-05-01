@@ -243,78 +243,81 @@
     />
     {#if expandedImages}
       {#each images2d as item, i}
-        {#if isImageSublist(item)}
-          <MenuCaret
-            bind:expanded={item.expanded}
-            bind:checked={
-              () =>
-                item.images.every(
-                  (x) =>
-                    entity.enabledVerticesList![x.index * verticesPerImage],
-                ),
-              (b: boolean) => {
-                for (
-                  let x = item.vertexRangeStart;
-                  x < item.vertexRangeEnd;
-                  x += 1
-                ) {
-                  entity.enabledVerticesList![x] = b;
+        <div class="ml-1">
+          {#if isImageSublist(item)}
+            <MenuCaret
+              bind:expanded={item.expanded}
+              bind:checked={
+                () =>
+                  item.images.every(
+                    (x) =>
+                      entity.enabledVerticesList![x.index * verticesPerImage],
+                  ),
+                (b: boolean) => {
+                  for (
+                    let x = item.vertexRangeStart;
+                    x < item.vertexRangeEnd;
+                    x += 1
+                  ) {
+                    entity.enabledVerticesList![x] = b;
+                  }
                 }
               }
-            }
-            oncheckedchange={menuData.redraw}
-            id={`${entity.uuid}-images-${item.desc}`}
-            text={`[Images ${item.desc}]`}
-          />
-          {#if item.expanded}
-            <div class="ml-2">
-              {#each item.images as image, j}
-                <MenuCaret
-                  bind:expanded={image.expanded}
-                  bind:checked={
-                    () =>
-                      entity.enabledVerticesList![
-                        image.index * verticesPerImage
-                      ],
-                    (b: boolean) => {
-                      for (let x = 0; x < verticesPerImage; x += 1) {
+              oncheckedchange={menuData.redraw}
+              id={`${entity.uuid}-images-${item.desc}`}
+              text={`[Images ${item.desc}]`}
+            />
+            {#if item.expanded}
+              <div class="ml-1">
+                {#each item.images as image, j}
+                  <MenuCaret
+                    bind:expanded={image.expanded}
+                    bind:checked={
+                      () =>
                         entity.enabledVerticesList![
-                          image.index * verticesPerImage + x
-                        ] = b;
+                          image.index * verticesPerImage
+                        ],
+                      (b: boolean) => {
+                        for (let x = 0; x < verticesPerImage; x += 1) {
+                          entity.enabledVerticesList![
+                            image.index * verticesPerImage + x
+                          ] = b;
+                        }
                       }
                     }
+                    oncheckedchange={menuData.redraw}
+                    id={`${entity.uuid}-images-${item.desc}-${j}`}
+                    text={`Image ${i * sublistMaxItemCount + j}`}
+                  />
+                  {#if image.expanded}
+                    <MenuImage2D {image} />
+                  {/if}
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <MenuCaret
+              bind:expanded={item.expanded}
+              bind:checked={
+                () =>
+                  entity.enabledVerticesList![item.index * verticesPerImage],
+                (b: boolean) => {
+                  for (let x = 0; x < verticesPerImage; x += 1) {
+                    entity.enabledVerticesList![
+                      item.index * verticesPerImage + x
+                    ] = b;
                   }
-                  oncheckedchange={menuData.redraw}
-                  id={`${entity.uuid}-images-${item.desc}-${j}`}
-                  text={`Image ${i * sublistMaxItemCount + j}`}
-                />
-                {#if image.expanded}
-                  <MenuImage2D {image} />
-                {/if}
-              {/each}
-            </div>
-          {/if}
-        {:else}
-          <MenuCaret
-            bind:expanded={item.expanded}
-            bind:checked={
-              () => entity.enabledVerticesList![item.index * verticesPerImage],
-              (b: boolean) => {
-                for (let x = 0; x < verticesPerImage; x += 1) {
-                  entity.enabledVerticesList![
-                    item.index * verticesPerImage + x
-                  ] = b;
                 }
               }
-            }
-            oncheckedchange={menuData.redraw}
-            id={`${entity.uuid}-images-${i}`}
-            text={`Image ${i}`}
-          />
-          {#if item.expanded}
-            <MenuImage2D image={item} />
+              oncheckedchange={menuData.redraw}
+              id={`${entity.uuid}-images-${i}`}
+              text={`Image ${i}`}
+            />
+            {#if item.expanded}
+              <MenuImage2D image={item} />
+            {/if}
           {/if}
-        {/if}
+        </div>
       {/each}
     {/if}
   {/if}
@@ -327,36 +330,38 @@
     />
     {#if expandedVertices}
       {#each vertices3d as item}
-        {#if isVertexSublist(item)}
-          <MenuCaret
-            bind:expanded={item.expanded}
-            id={`${entity.uuid}-vertices-${item.desc}`}
-            text={`[Vertices ${item.desc}]`}
-          />
-          {#if item.expanded}
-            <div class="ml-2">
-              {#each item.vertices as vertex}
-                <MenuCaret
-                  bind:expanded={vertex.expanded}
-                  id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
-                  text={`Vertex ${vertex.index}`}
-                />
-                {#if vertex.expanded}
-                  <MenuVertex3D {vertex} />
-                {/if}
-              {/each}
-            </div>
+        <div class="ml-1">
+          {#if isVertexSublist(item)}
+            <MenuCaret
+              bind:expanded={item.expanded}
+              id={`${entity.uuid}-vertices-${item.desc}`}
+              text={`[Vertices ${item.desc}]`}
+            />
+            {#if item.expanded}
+              <div class="ml-1">
+                {#each item.vertices as vertex}
+                  <MenuCaret
+                    bind:expanded={vertex.expanded}
+                    id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
+                    text={`Vertex ${vertex.index}`}
+                  />
+                  {#if vertex.expanded}
+                    <MenuVertex3D {vertex} />
+                  {/if}
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <MenuCaret
+              bind:expanded={item.expanded}
+              id={`${entity.uuid}-vertices-${item.index}`}
+              text={`Vertex ${item.index}`}
+            />
+            {#if item.expanded}
+              <MenuVertex3D vertex={item} />
+            {/if}
           {/if}
-        {:else}
-          <MenuCaret
-            bind:expanded={item.expanded}
-            id={`${entity.uuid}-vertices-${item.index}`}
-            text={`Vertex ${item.index}`}
-          />
-          {#if item.expanded}
-            <MenuVertex3D vertex={item} />
-          {/if}
-        {/if}
+        </div>
       {/each}
     {/if}
   {/if}
@@ -372,7 +377,7 @@
     />
     {#if expandedModels}
       {#each models as model}
-        <div class="ml-2">
+        <div class="ml-1">
           <MenuCaret
             bind:expanded={model.expanded}
             id={`${entity.uuid}-models`}
@@ -386,36 +391,38 @@
             />
             {#if model.verticesExpanded}
               {#each model.vertices as item}
-                {#if isModelVertexSublist(item)}
-                  <MenuCaret
-                    bind:expanded={item.expanded}
-                    id={`${entity.uuid}-vertices-${item.desc}`}
-                    text={`[Vertices ${item.desc}]`}
-                  />
-                  {#if item.expanded}
-                    <div class="ml-2">
-                      {#each item.vertices as vertex}
-                        <MenuCaret
-                          bind:expanded={vertex.expanded}
-                          id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
-                          text={`Vertex ${vertex.index}`}
-                        />
-                        {#if vertex.expanded}
-                          <MenuModelVertex {vertex} />
-                        {/if}
-                      {/each}
-                    </div>
+                <div class="ml-1">
+                  {#if isModelVertexSublist(item)}
+                    <MenuCaret
+                      bind:expanded={item.expanded}
+                      id={`${entity.uuid}-vertices-${item.desc}`}
+                      text={`[Vertices ${item.desc}]`}
+                    />
+                    {#if item.expanded}
+                      <div class="ml-1">
+                        {#each item.vertices as vertex}
+                          <MenuCaret
+                            bind:expanded={vertex.expanded}
+                            id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
+                            text={`Vertex ${vertex.index}`}
+                          />
+                          {#if vertex.expanded}
+                            <MenuModelVertex {vertex} />
+                          {/if}
+                        {/each}
+                      </div>
+                    {/if}
+                  {:else}
+                    <MenuCaret
+                      bind:expanded={item.expanded}
+                      id={`${entity.uuid}-${model.index}-vertex-${item.index}`}
+                      text={`Vertex ${item.index}`}
+                    />
+                    {#if item.expanded}
+                      <MenuModelVertex vertex={item} />
+                    {/if}
                   {/if}
-                {:else}
-                  <MenuCaret
-                    bind:expanded={item.expanded}
-                    id={`${entity.uuid}-${model.index}-vertex-${item.index}`}
-                    text={`Vertex ${item.index}`}
-                  />
-                  {#if item.expanded}
-                    <MenuModelVertex vertex={item} />
-                  {/if}
-                {/if}
+                </div>
               {/each}
             {/if}
           {/if}
