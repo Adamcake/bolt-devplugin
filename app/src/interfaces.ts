@@ -114,3 +114,13 @@ export interface VertexData3D {
   expanded: boolean;
   index: number;
 }
+
+export interface ModelVertexData {
+  modelpoint: Point3D;
+  r: GLfloat;
+  g: GLfloat;
+  b: GLfloat;
+  a: GLfloat;
+  expanded: boolean;
+  index: number;
+}

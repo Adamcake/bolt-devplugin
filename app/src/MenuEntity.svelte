@@ -3,6 +3,8 @@
     Entity,
     MenuData,
     Vertex,
+    Model,
+    ModelVertexData,
     ImageData2D,
     VertexData3D,
   } from "./interfaces";
@@ -10,6 +12,7 @@
   import MenuCaret from "./MenuCaret.svelte";
   import MenuImage2D from "./MenuImage2D.svelte";
   import MenuVertex3D from "./MenuVertex3D.svelte";
+  import MenuModelVertex from "./MenuModelVertex.svelte";
   export let entity: Entity;
   export let menuData: MenuData;
 
@@ -18,6 +21,7 @@
 
   let expandedImages = false;
   let expandedVertices = false;
+  let expandedModels = false;
 
   interface ImageSublist {
     images: ImageData2D[];
@@ -33,6 +37,19 @@
     expanded: boolean;
   }
 
+  interface ModelData {
+    vertices: ModelVertexData[] | ModelVertexSublist[];
+    expanded: boolean;
+    verticesExpanded: boolean;
+    index: number;
+  }
+
+  interface ModelVertexSublist {
+    vertices: ModelVertexData[];
+    desc: string;
+    expanded: boolean;
+  }
+
   function isImageSublist(
     object: ImageData2D | ImageSublist,
   ): object is ImageSublist {
@@ -42,6 +59,12 @@
   function isVertexSublist(
     object: VertexData3D | VertexSublist,
   ): object is VertexSublist {
+    return "vertices" in object;
+  }
+
+  function isModelVertexSublist(
+    object: ModelVertexData | ModelVertexSublist,
+  ): object is ModelVertexSublist {
     return "vertices" in object;
   }
 
@@ -122,10 +145,51 @@
     };
   };
 
+  const createModelVertex = (
+    vertex: Vertex,
+    index: number,
+  ): ModelVertexData => {
+    return {
+      modelpoint: { ...vertex },
+      expanded: false,
+      index,
+      ...vertex,
+    };
+  };
+
+  const createModelVertexSublist = (
+    list: ModelVertexData[],
+    index: number,
+  ): ModelVertexSublist => {
+    const startIndex = index * sublistMaxItemCount;
+    return {
+      vertices: list,
+      desc: `${startIndex}-${startIndex + list.length - 1}`,
+      expanded: false,
+    };
+  };
+
+  const createModel = (model: Model, index: number): ModelData => {
+    const vertices: ModelVertexData[] | ModelVertexSublist[] = createSublists(
+      model.vertices,
+      sublistMaxItemCount,
+      createModelVertex,
+      createModelVertexSublist,
+    );
+    return {
+      vertices,
+      expanded: false,
+      verticesExpanded: false,
+      index,
+    };
+  };
+
   let images2d: ImageData2D[] | ImageSublist[] | null = null;
   let image2dCount = 0;
   let vertices3d: VertexData3D[] | VertexSublist[] | null = null;
   let vertex3dCount = 0;
+  let models: ModelData[] | null = null;
+  let modelCount = 0;
   if (entity.type === "batch2d" || entity.type === "minimap2d") {
     const list = [...chunksExact(entity.vertices!, verticesPerImage)];
     image2dCount = list.length;
@@ -145,6 +209,11 @@
       convert,
       createVertexSublist,
     );
+  }
+
+  if (entity.models) {
+    modelCount = entity.models.length;
+    models = entity.models.map(createModel);
   }
 </script>
 
@@ -257,7 +326,7 @@
       text={`3D vertices (${vertex3dCount})`}
     />
     {#if expandedVertices}
-      {#each vertices3d as item, i}
+      {#each vertices3d as item}
         {#if isVertexSublist(item)}
           <MenuCaret
             bind:expanded={item.expanded}
@@ -266,11 +335,11 @@
           />
           {#if item.expanded}
             <div class="ml-2">
-              {#each item.vertices as vertex, j}
+              {#each item.vertices as vertex}
                 <MenuCaret
                   bind:expanded={vertex.expanded}
-                  id={`${entity.uuid}-vertices-${item.desc}-${j}`}
-                  text={`Vertex ${i * sublistMaxItemCount + j}`}
+                  id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
+                  text={`Vertex ${vertex.index}`}
                 />
                 {#if vertex.expanded}
                   <MenuVertex3D {vertex} />
@@ -281,13 +350,76 @@
         {:else}
           <MenuCaret
             bind:expanded={item.expanded}
-            id={`${entity.uuid}-vertices-${i}`}
-            text={`Vertex ${i}`}
+            id={`${entity.uuid}-vertices-${item.index}`}
+            text={`Vertex ${item.index}`}
           />
           {#if item.expanded}
             <MenuVertex3D vertex={item} />
           {/if}
         {/if}
+      {/each}
+    {/if}
+  {/if}
+
+  {#if models && modelCount}
+    screen: {entity.targetx},{entity.targety}
+    {entity.targetw}x{entity.targeth}
+    <br />
+    <MenuCaret
+      bind:expanded={expandedModels}
+      id={`${entity.uuid}-models`}
+      text={`Models (${modelCount})`}
+    />
+    {#if expandedModels}
+      {#each models as model}
+        <div class="ml-2">
+          <MenuCaret
+            bind:expanded={model.expanded}
+            id={`${entity.uuid}-models`}
+            text={`Model ${model.index}`}
+          />
+          {#if model.expanded}
+            <MenuCaret
+              bind:expanded={model.verticesExpanded}
+              id={`${entity.uuid}-vertices`}
+              text={`Vertices (${model.vertices.length})`}
+            />
+            {#if model.verticesExpanded}
+              {#each model.vertices as item}
+                {#if isModelVertexSublist(item)}
+                  <MenuCaret
+                    bind:expanded={item.expanded}
+                    id={`${entity.uuid}-vertices-${item.desc}`}
+                    text={`[Vertices ${item.desc}]`}
+                  />
+                  {#if item.expanded}
+                    <div class="ml-2">
+                      {#each item.vertices as vertex}
+                        <MenuCaret
+                          bind:expanded={vertex.expanded}
+                          id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
+                          text={`Vertex ${vertex.index}`}
+                        />
+                        {#if vertex.expanded}
+                          <MenuModelVertex {vertex} />
+                        {/if}
+                      {/each}
+                    </div>
+                  {/if}
+                {:else}
+                  <MenuCaret
+                    bind:expanded={item.expanded}
+                    id={`${entity.uuid}-${model.index}-vertex-${item.index}`}
+                    text={`Vertex ${item.index}`}
+                  />
+                  {#if item.expanded}
+                    <MenuModelVertex vertex={item} />
+                  {/if}
+                {/if}
+              {/each}
+            {/if}
+          {/if}
+        </div>
       {/each}
     {/if}
   {/if}
