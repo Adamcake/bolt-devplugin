@@ -22,7 +22,6 @@
   <b>All textures</b>
 </div>
 {#each Object.entries(data.textures) as [id, texture]}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="static select-none m-0 border-none w-full text-left">
     <button
       class={data.selectedTexture === texture
@@ -39,7 +38,6 @@
   <b>All entities</b>
 </div>
 {#each data.entities as entity, i}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class={`select-none m-0 border-none w-full ${i & 1 ? "bg-[#c4c4e4]" : "bg-[#b8b8d8]"}`}
   >
