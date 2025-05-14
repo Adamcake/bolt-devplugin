@@ -14,6 +14,8 @@
     }
     data.redraw();
   };
+
+  const level: number = 1;
 </script>
 
 <div class="static select-none m-0 border-none w-full">
@@ -47,9 +49,11 @@
       text={entity.type}
       bind:checked={entity.enabled}
       oncheckedchange={data.redraw}
+      {level}
     />
     {#if entity.expanded}
-      <MenuEntity bind:entity bind:menuData={data}></MenuEntity>
+      <MenuEntity bind:entity bind:menuData={data} level={level + 1}
+      ></MenuEntity>
     {/if}
   </div>
 {/each}

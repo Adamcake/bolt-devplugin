@@ -15,6 +15,7 @@
   import MenuModelVertex from "./MenuModelVertex.svelte";
   export let entity: Entity;
   export let menuData: MenuData;
+  export let level: number;
 
   const verticesPerImage = 6;
   const sublistMaxItemCount = 100;
@@ -240,6 +241,7 @@
       bind:expanded={expandedImages}
       id={`${entity.uuid}-images2d`}
       text={`2D images (${image2dCount})`}
+      {level}
     />
     {#if expandedImages}
       {#each images2d as item, i}
@@ -266,6 +268,7 @@
               oncheckedchange={menuData.redraw}
               id={`${entity.uuid}-images-${item.desc}`}
               text={`[Images ${item.desc}]`}
+              level={level + 1}
             />
             {#if item.expanded}
               <div class="ml-1">
@@ -288,6 +291,7 @@
                     oncheckedchange={menuData.redraw}
                     id={`${entity.uuid}-images-${item.desc}-${j}`}
                     text={`Image ${i * sublistMaxItemCount + j}`}
+                    level={level + 2}
                   />
                   {#if image.expanded}
                     <MenuImage2D {image} />
@@ -312,6 +316,7 @@
               oncheckedchange={menuData.redraw}
               id={`${entity.uuid}-images-${i}`}
               text={`Image ${i}`}
+              level={level + 1}
             />
             {#if item.expanded}
               <MenuImage2D image={item} />
@@ -327,6 +332,7 @@
       bind:expanded={expandedVertices}
       id={`${entity.uuid}-vertices3d`}
       text={`3D vertices (${vertex3dCount})`}
+      {level}
     />
     {#if expandedVertices}
       {#each vertices3d as item}
@@ -336,6 +342,7 @@
               bind:expanded={item.expanded}
               id={`${entity.uuid}-vertices-${item.desc}`}
               text={`[Vertices ${item.desc}]`}
+              level={level + 1}
             />
             {#if item.expanded}
               <div class="ml-1">
@@ -344,6 +351,7 @@
                     bind:expanded={vertex.expanded}
                     id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
                     text={`Vertex ${vertex.index}`}
+                    level={level + 2}
                   />
                   {#if vertex.expanded}
                     <MenuVertex3D {vertex} />
@@ -356,6 +364,7 @@
               bind:expanded={item.expanded}
               id={`${entity.uuid}-vertices-${item.index}`}
               text={`Vertex ${item.index}`}
+              level={level + 1}
             />
             {#if item.expanded}
               <MenuVertex3D vertex={item} />
@@ -374,6 +383,7 @@
       bind:expanded={expandedModels}
       id={`${entity.uuid}-models`}
       text={`Models (${modelCount})`}
+      {level}
     />
     {#if expandedModels}
       {#each models as model}
@@ -382,12 +392,14 @@
             bind:expanded={model.expanded}
             id={`${entity.uuid}-models`}
             text={`Model ${model.index}`}
+            level={level + 1}
           />
           {#if model.expanded}
             <MenuCaret
               bind:expanded={model.verticesExpanded}
               id={`${entity.uuid}-vertices`}
               text={`Vertices (${model.vertices.length})`}
+              level={level + 2}
             />
             {#if model.verticesExpanded}
               {#each model.vertices as item}
@@ -397,6 +409,7 @@
                       bind:expanded={item.expanded}
                       id={`${entity.uuid}-vertices-${item.desc}`}
                       text={`[Vertices ${item.desc}]`}
+                      level={level + 3}
                     />
                     {#if item.expanded}
                       <div class="ml-1">
@@ -405,6 +418,7 @@
                             bind:expanded={vertex.expanded}
                             id={`${entity.uuid}-vertices-${item.desc}-${vertex.index}`}
                             text={`Vertex ${vertex.index}`}
+                            level={level + 4}
                           />
                           {#if vertex.expanded}
                             <MenuModelVertex {vertex} />
@@ -417,6 +431,7 @@
                       bind:expanded={item.expanded}
                       id={`${entity.uuid}-${model.index}-vertex-${item.index}`}
                       text={`Vertex ${item.index}`}
+                      level={level + 3}
                     />
                     {#if item.expanded}
                       <MenuModelVertex vertex={item} />

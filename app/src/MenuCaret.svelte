@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { onDragStart, onDragEnter, onDragEnd } from "./draghandler";
+
   export let expanded: boolean;
   export let id: string;
   export let text: string;
   export let checked: boolean | null = null;
+  export let level: number;
 
   export let onexpandedchange: (() => void) | null = null;
   export let oncheckedchange: (() => void) | null = null;
@@ -13,6 +16,17 @@
       onexpandedchange();
     }
   };
+
+  const setChecked = (b: boolean) => {
+    checked = b;
+    if (oncheckedchange) {
+      oncheckedchange();
+    }
+  };
+
+  const ondragstart = () => onDragStart(!checked, level, id, setChecked);
+  const ondragenter = () => onDragEnter(level, id, setChecked);
+  const ondragend = onDragEnd;
 </script>
 
 {#if expanded}
@@ -45,7 +59,17 @@
     type="checkbox"
     bind:checked
     onchange={oncheckedchange}
+    {ondragstart}
+    {ondragenter}
+    {ondragend}
   />
 {/if}
-<label for={id}>{text}</label>
+<label
+  for={id}
+  draggable={true}
+  onchange={oncheckedchange}
+  {ondragstart}
+  {ondragenter}
+  {ondragend}>{text}</label
+>
 <br />
