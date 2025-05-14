@@ -40,6 +40,7 @@
 
   interface ModelData {
     vertices: ModelVertexData[] | ModelVertexSublist[];
+    vertexCount: number;
     expanded: boolean;
     verticesExpanded: boolean;
     index: number;
@@ -179,6 +180,7 @@
     );
     return {
       vertices,
+      vertexCount: model.vertices.length,
       expanded: false,
       verticesExpanded: false,
       index,
@@ -398,7 +400,7 @@
             <MenuCaret
               bind:expanded={model.verticesExpanded}
               id={`${entity.uuid}-vertices`}
-              text={`Vertices (${model.vertices.length})`}
+              text={`Vertices (${model.vertexCount})`}
               level={level + 2}
             />
             {#if model.verticesExpanded}
