@@ -33,42 +33,6 @@
     return str ? parseInt(str) : 0;
   };
 
-  const makeProjMatrix = (
-    width: number,
-    height: number,
-    near: number,
-    far: number,
-    fov: number,
-  ) => {
-    // https://www.songho.ca/opengl/gl_projectionmatrix.html
-    // the view matrix given to us by the game is slightly incorrect in that it projects the world into the positive
-    // z-axis instead of the negative, so to compensate for this, the third row of this matrix is negated from what you
-    // might find in a normal projection matrix. this matrix is also row-major whereas the article linked above uses
-    // column-major notation.
-    return new Float32Array([
-      near / (width * fov),
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      near / (height * fov),
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      (far + near) / (far - near),
-      1.0,
-      0.0,
-      0.0,
-      (-2 * far * near) / (far - near),
-      0.0,
-    ]);
-  };
-
-  const identityMatrix = new Float32Array([
-    1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
-  ]);
-
   const textureUnitID = 0;
 
   let program2d: WebGLProgram | null = null;
@@ -117,7 +81,8 @@
   let minimapfb: WebGLFramebuffer | null = null;
   let minimapWidth: number = 0;
   let minimapHeight: number = 0;
-  let projMatrix = makeProjMatrix(gvw, gvh, 460, 65536 + 1024, 5 / 16);
+  let viewMatrix: Float32Array;
+  let projMatrix: Float32Array;
   let done: boolean = false;
   let showMenu: boolean = false;
 
@@ -517,12 +482,12 @@
         gl.uniformMatrix4fv(
           entity.animated ? programAnim3d_uViewMatrix : program3d_uViewMatrix,
           false,
-          entity.viewMatrix!,
+          viewMatrix!,
         );
         gl.uniformMatrix4fv(
           entity.animated ? programAnim3d_uProjMatrix : program3d_uProjMatrix,
           false,
-          projMatrix,
+          projMatrix!,
         );
         gl.uniform2fv(
           entity.animated ? programAnim3d_uAtlasWH : program3d_uAtlasWH,
@@ -547,12 +512,8 @@
         const tex = menuData.textures[entity.textureId!];
         gl.useProgram(programParticles);
         gl.viewport(gvx, gvy, gvw, gvh);
-        gl.uniformMatrix4fv(
-          programParticles_uViewMatrix,
-          false,
-          entity.viewMatrix!,
-        );
-        gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix);
+        gl.uniformMatrix4fv(programParticles_uViewMatrix, false, viewMatrix!);
+        gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix!);
         gl.uniform2fv(programParticles_uAtlasWH, [tex.width, tex.height]);
         gl.bindTexture(gl.TEXTURE_2D, tex.texture);
         gl.uniform1i(programParticles_uTex, textureUnitID);
@@ -703,10 +664,8 @@
         const textureId = arr.getUint32(8, true);
         const modelMatrix = new Float32Array(16);
         modelMatrix.set(new Float32Array(message, 16, 16));
-        const viewMatrix = new Float32Array(16);
-        viewMatrix.set(new Float32Array(message, 80, 16));
 
-        const data = new DataView(message, 144, vertexCount * vertexMsgSize);
+        const data = new DataView(message, 80, vertexCount * vertexMsgSize);
         const vertices = new Array(vertexCount);
         const bufferDataArray = new ArrayBuffer(vertexCount * vertexBufferSize);
         const bufferData = new DataView(bufferDataArray);
@@ -718,7 +677,7 @@
           if (animated) {
             anim = new Float32Array(16);
             anim.set(
-              new Float32Array(message, 144 + vertexMsgSize * i + 40, 16),
+              new Float32Array(message, 80 + vertexMsgSize * i + 40, 16),
             );
           }
 
@@ -770,7 +729,6 @@
           textureId,
           vertexCount,
           modelMatrix,
-          viewMatrix,
           vertices,
           buffer: {
             vbo,
@@ -1122,9 +1080,7 @@
 
         const vertexMsgSize = 64;
         const vertexBufferSize = 72;
-        const viewMatrix = new Float32Array(16);
-        viewMatrix.set(new Float32Array(message, 16, 16));
-        const data = new DataView(message, 80, vertexCount * vertexMsgSize);
+        const data = new DataView(message, 16, vertexCount * vertexMsgSize);
         const vertices = new Array(vertexCount);
         const bufferDataArray = new ArrayBuffer(vertexCount * vertexBufferSize);
         const bufferData = new DataView(bufferDataArray);
@@ -1183,7 +1139,6 @@
           textureId,
           vertexCount,
           vertices,
-          viewMatrix,
           buffer: {
             vbo,
             step: vertexBufferSize,
@@ -1195,6 +1150,11 @@
         });
         receivedVertices += vertexCount;
         redraw(canvas, gl);
+        break;
+      }
+      case 10: {
+        viewMatrix = new Float32Array(message, 4, 16);
+        projMatrix = new Float32Array(message, 68, 16);
         break;
       }
     }

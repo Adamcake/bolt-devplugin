@@ -11,6 +11,7 @@ local capturebuttonclickx, capturebuttonclicky
 local capturepending = false
 local capturing = false
 local capturetextures = {}
+local viewprojsent = false
 local capturebrowser
 local captureestimate = 0
 local cfg = {}
@@ -69,6 +70,16 @@ local function sendtexture (event)
   end
 end
 
+local function sendviewproj (event)
+  if viewprojsent then return end
+  local message = bolt.createbuffer(4 + 64 + 64)
+  message:setuint8(0, 10)
+  setbuffermatrix(message, 4, event:viewmatrix())
+  setbuffermatrix(message, 4 + 64, event:projectionmatrix())
+  capturebrowser:sendmessage(message)
+  viewprojsent = true
+end
+
 capturebuttonwindow = bolt.createwindow(cfg.buttonx or 20, cfg.buttony or 20, buttonwidth, buttonheight)
 
 bolt.onswapbuffers(function (event)
@@ -78,6 +89,7 @@ bolt.onswapbuffers(function (event)
   capturing = capturepending
   capturepending = false
   capturetextures = {}
+  viewprojsent = false
   local windoww, windowh = bolt.gamewindowsize()
   local gvx, gvy, gvw, gvh = bolt.gameviewxywh()
   if capturing then
@@ -216,12 +228,13 @@ bolt.onrender3d(function (event)
   local textureid = event:textureid()
 
   sendtexture(event)
+  sendviewproj(event)
 
   local vertexmsgsize = 40
   if animated then
     vertexmsgsize = 104
   end
-  local messagesize = 144 + (vertexcount * vertexmsgsize)
+  local messagesize = 80 + (vertexcount * vertexmsgsize)
   local message = bolt.createbuffer(messagesize)
   if animated then
     message:setuint8(0, 3)
@@ -232,8 +245,7 @@ bolt.onrender3d(function (event)
   message:setuint32(8, textureid)
   -- 4 unused bytes
   setbuffermatrix(message, 16, event:modelmatrix())
-  setbuffermatrix(message, 80, event:viewmatrix())
-  local cursor = 144
+  local cursor = 80
 
   for i = 1, vertexcount do
     local x, y, z = event:vertexpoint(i):get()
@@ -270,16 +282,16 @@ bolt.onrenderparticles(function (event)
 
   local textureid = event:textureid()
   sendtexture(event)
+  sendviewproj(event)
 
   local vertexmsgsize = 64
-  local messagesize = 16 + 64 + (vertexcount * vertexmsgsize)
+  local messagesize = 16 + (vertexcount * vertexmsgsize)
   local message = bolt.createbuffer(messagesize)
   message:setuint8(0, 9)
   message:setuint32(4, vertexcount)
   message:setuint32(8, textureid)
   -- 4 unused bytes
-  setbuffermatrix(message, 16, event:viewmatrix())
-  local cursor = 80
+  local cursor = 16
   for i = 1, vertexcount do
     local x, y, z = event:vertexparticleorigin(i):get()
     local u, v = event:vertexuv(i)

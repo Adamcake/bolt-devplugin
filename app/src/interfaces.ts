@@ -8,7 +8,6 @@ export interface Entity {
   vertexCount?: number;
   texture?: WebGLTexture;
   modelMatrix?: Float32Array;
-  viewMatrix?: Float32Array;
   texSize?: GLfloat;
   vertices?: Vertex[];
   models?: Model[];
