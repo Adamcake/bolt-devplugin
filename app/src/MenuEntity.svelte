@@ -239,6 +239,7 @@
         menuData.textureBoundH = tex.height;
         menuData.textureViewX = 0;
         menuData.textureViewY = 0;
+        menuData.textureViewScale = 100;
         menuData.redraw();
       }}>texture: #{entity.textureId}</button
     >

@@ -31,6 +31,7 @@
     textureBoundH: 1,
     textureViewX: 0,
     textureViewY: 0,
+    textureViewScale: 100,
     redraw: () => redraw(canvas!, gl!),
   };
 
@@ -71,6 +72,9 @@
   let checkersBuffer: Buffer | null = null;
 
   const square2d = new Float32Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1]);
+  const zoomScaleMin = 10;
+  const zoomScaleMax = 1000;
+  const zoomScaleStep = 10;
 
   const params = new URLSearchParams(window.location.search);
   const n = params.get("n");
@@ -366,6 +370,41 @@
     }
 
     if (menuData.selectedTexture) {
+      // clamp the camera view
+      if (menuData.textureViewScale < zoomScaleMin)
+        menuData.textureViewScale = zoomScaleMin;
+      if (menuData.textureViewScale > zoomScaleMax)
+        menuData.textureViewScale = zoomScaleMax;
+      const scale = menuData.textureViewScale / 100;
+      const doubleScale = scale * 2.0;
+      const tx1 = menuData.textureBoundX;
+      const tx2 = menuData.textureBoundX + menuData.textureBoundW;
+      const ty1 = menuData.textureBoundY;
+      const ty2 = menuData.textureBoundY + menuData.textureBoundH;
+      let cx = menuData.textureViewX + canvas.width / doubleScale;
+      let cy = menuData.textureViewY + canvas.height / doubleScale;
+      let clamped = false;
+      if (cx < tx1) {
+        cx = tx1;
+        clamped = true;
+      }
+      if (cy < ty1) {
+        cy = ty1;
+        clamped = true;
+      }
+      if (cx > tx2) {
+        cx = tx2;
+        clamped = true;
+      }
+      if (cy > ty2) {
+        cy = ty2;
+        clamped = true;
+      }
+      if (clamped) {
+        menuData.textureViewX = cx - canvas.width / doubleScale;
+        menuData.textureViewY = cy - canvas.height / doubleScale;
+      }
+
       gl.useProgram(programCheckers);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2fv(programCheckers_uScreenWH, [canvas.width, canvas.height]);
@@ -382,10 +421,10 @@
       drawArraysFromEntityBuffer(gl, checkersBuffer, 6);
 
       const tex = menuData.selectedTexture;
-      const x1 = menuData.textureBoundX - menuData.textureViewX;
-      const x2 = x1 + tex.width;
-      const y1 = menuData.textureBoundY - menuData.textureViewY;
-      const y2 = y1 + tex.height;
+      const x1 = menuData.textureBoundX - menuData.textureViewX * scale;
+      const x2 = x1 + tex.width * scale;
+      const y1 = menuData.textureBoundY - menuData.textureViewY * scale;
+      const y2 = y1 + tex.height * scale;
 
       gl.blendFuncSeparate(
         gl.SRC_ALPHA,
@@ -1173,21 +1212,28 @@
   });
 
   const canvasPanByMouseEvent = (e: MouseEvent) => {
-    const c = canvas!;
     if (!(e.buttons & 1)) {
       canvasOnMouseMove = null;
       return;
     }
-    const minX = menuData.textureBoundX - c.width / 2;
-    const minY = menuData.textureBoundY - c.height / 2;
-    const maxX = minX + menuData.textureBoundW;
-    const maxY = minY + menuData.textureBoundH;
-    menuData.textureViewX -= e.movementX;
-    menuData.textureViewY -= e.movementY;
-    if (menuData.textureViewX < minX) menuData.textureViewX = minX;
-    if (menuData.textureViewY < minY) menuData.textureViewY = minY;
-    if (menuData.textureViewX > maxX) menuData.textureViewX = maxX;
-    if (menuData.textureViewY > maxY) menuData.textureViewY = maxY;
+    const scale = menuData.textureViewScale / 100.0;
+    menuData.textureViewX -= e.movementX / scale;
+    menuData.textureViewY -= e.movementY / scale;
+    menuData.redraw();
+  };
+
+  const canvasZoomByWheelEvent = (e: WheelEvent) => {
+    const c = canvas!;
+    const oldScale = menuData.textureViewScale;
+    const newScale =
+      menuData.textureViewScale - zoomScaleStep * Math.sign(e.deltaY);
+    menuData.textureViewScale = newScale;
+    const oldfactor = (2.0 * oldScale) / 100.0;
+    const newfactor = (2.0 * newScale) / 100.0;
+    const cx = menuData.textureViewX + c.width / oldfactor;
+    const cy = menuData.textureViewY + c.height / oldfactor;
+    menuData.textureViewX = cx - c.width / newfactor;
+    menuData.textureViewY = cy - c.height / newfactor;
     redraw(c, gl!);
   };
 </script>
@@ -1198,6 +1244,7 @@
   onmousedown={() => (canvasOnMouseMove = canvasPanByMouseEvent)}
   onmouseup={() => (canvasOnMouseMove = null)}
   onmousemove={canvasOnMouseMove}
+  onwheel={canvasZoomByWheelEvent}
 ></canvas>
 
 {#if showMenu}

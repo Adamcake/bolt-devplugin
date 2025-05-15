@@ -17,6 +17,7 @@
       data.textureBoundH = tex.height;
       data.textureViewX = 0;
       data.textureViewY = 0;
+      data.textureViewScale = 100;
     }
     data.redraw();
   };

@@ -78,6 +78,7 @@ export interface MenuData {
   textureBoundH: number;
   textureViewX: number;
   textureViewY: number;
+  textureViewScale: number;
   redraw: () => void;
 }
 
