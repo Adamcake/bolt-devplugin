@@ -429,10 +429,14 @@
       drawArraysFromEntityBuffer(gl, checkersBuffer, 6);
 
       const tex = menuData.selectedTexture;
-      const x1 = menuData.textureBoundX - menuData.textureViewX * scale;
-      const x2 = x1 + tex.width * scale;
-      const y1 = menuData.textureBoundY - menuData.textureViewY * scale;
-      const y2 = y1 + tex.height * scale;
+      const x1 = (menuData.textureBoundX - menuData.textureViewX) * scale;
+      const x2 = x1 + menuData.textureBoundW * scale;
+      const y1 = (menuData.textureBoundY - menuData.textureViewY) * scale;
+      const y2 = y1 + menuData.textureBoundH * scale;
+      const u1 = tx1 / tex.width;
+      const u2 = tx2 / tex.width;
+      const v1 = ty1 / tex.height;
+      const v2 = ty2 / tex.height;
 
       gl.blendFuncSeparate(
         gl.SRC_ALPHA,
@@ -456,12 +460,12 @@
         gl.ARRAY_BUFFER,
         // prettier-ignore
         new Float32Array([
-          x1,y1,0,0, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
-          x2,y1,1,0, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
-          x1,y2,0,1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
-          x2,y1,1,0, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
-          x2,y2,1,1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
-          x1,y2,0,1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x1,y1,u1,v1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x2,y1,u2,v1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x1,y2,u1,v2, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x2,y1,u2,v1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x2,y2,u2,v2, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x1,y2,u1,v2, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
         ]),
         gl.STATIC_DRAW,
       );

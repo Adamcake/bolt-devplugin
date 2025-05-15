@@ -218,6 +218,21 @@
     modelCount = entity.models.length;
     models = entity.models.map(createModel);
   }
+
+  const viewTextureFromAtlas = (image: ImageData2D | VertexData3D) => {
+    const id = entity.textureId!;
+    const tex = menuData.textures[id];
+    menuData.selectedTextureId = entity.uuid;
+    menuData.selectedTexture = tex;
+    menuData.textureBoundX = image.ax;
+    menuData.textureBoundY = image.ay;
+    menuData.textureBoundW = image.aw;
+    menuData.textureBoundH = image.ah;
+    menuData.textureViewX = 0;
+    menuData.textureViewY = 0;
+    menuData.textureViewScale = 100;
+    menuData.redraw();
+  };
 </script>
 
 <div class="ml-3 text-sm">
@@ -227,7 +242,7 @@
 
   {#if typeof entity.textureId === "number"}
     <button
-      class="hover:bg-gray-200"
+      class="px-1 bg-gray-200 hover:bg-gray-100"
       onclick={() => {
         const id = entity.textureId!;
         const tex = menuData.textures[id];
@@ -304,7 +319,7 @@
                     level={level + 2}
                   />
                   {#if image.expanded}
-                    <MenuImage2D {image} />
+                    <MenuImage2D {image} view={viewTextureFromAtlas} />
                   {/if}
                 {/each}
               </div>
@@ -329,7 +344,7 @@
               level={level + 1}
             />
             {#if item.expanded}
-              <MenuImage2D image={item} />
+              <MenuImage2D image={item} view={viewTextureFromAtlas} />
             {/if}
           {/if}
         </div>
@@ -364,7 +379,7 @@
                     level={level + 2}
                   />
                   {#if vertex.expanded}
-                    <MenuVertex3D {vertex} />
+                    <MenuVertex3D {vertex} view={viewTextureFromAtlas} />
                   {/if}
                 {/each}
               </div>
@@ -377,7 +392,7 @@
               level={level + 1}
             />
             {#if item.expanded}
-              <MenuVertex3D vertex={item} />
+              <MenuVertex3D vertex={item} view={viewTextureFromAtlas} />
             {/if}
           {/if}
         </div>
