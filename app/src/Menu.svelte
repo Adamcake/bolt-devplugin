@@ -11,6 +11,12 @@
     } else {
       data.selectedTextureId = id;
       data.selectedTexture = tex;
+      data.textureBoundX = 0;
+      data.textureBoundY = 0;
+      data.textureBoundW = tex.width;
+      data.textureBoundH = tex.height;
+      data.textureViewX = 0;
+      data.textureViewY = 0;
     }
     data.redraw();
   };

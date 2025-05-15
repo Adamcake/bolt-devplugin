@@ -72,6 +72,12 @@ export interface MenuData {
   textures: Record<number, Texture>;
   selectedTexture: Texture | null;
   selectedTextureId: string;
+  textureBoundX: number;
+  textureBoundY: number;
+  textureBoundW: number;
+  textureBoundH: number;
+  textureViewX: number;
+  textureViewY: number;
   redraw: () => void;
 }
 

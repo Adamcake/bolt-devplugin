@@ -25,6 +25,12 @@
     entities: [],
     selectedTexture: null,
     selectedTextureId: "",
+    textureBoundX: 0,
+    textureBoundY: 0,
+    textureBoundW: 1,
+    textureBoundH: 1,
+    textureViewX: 0,
+    textureViewY: 0,
     redraw: () => redraw(canvas!, gl!),
   };
 
@@ -64,6 +70,8 @@
 
   let checkersBuffer: Buffer | null = null;
 
+  const square2d = new Float32Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1]);
+
   const params = new URLSearchParams(window.location.search);
   const n = params.get("n");
   const estimatedVertices: number = n ? Math.max(parseInt(n), 1) : 1;
@@ -85,6 +93,7 @@
   let projMatrix: Float32Array;
   let done: boolean = false;
   let showMenu: boolean = false;
+  let canvasOnMouseMove: ((e: MouseEvent) => void) | null = null;
 
   let canvas: HTMLCanvasElement | null = null;
   let gl: WebGL2RenderingContext | null = null;
@@ -363,12 +372,7 @@
       if (!checkersBuffer) {
         const vbo1 = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo1);
-        gl.bufferData(
-          gl.ARRAY_BUFFER,
-          // prettier-ignore
-          new Float32Array([0,0,1,0,0,1,1,0,1,1,0,1]),
-          gl.STATIC_DRAW,
-        );
+        gl.bufferData(gl.ARRAY_BUFFER, square2d, gl.STATIC_DRAW);
         checkersBuffer = {
           vbo: vbo1,
           step: 8,
@@ -378,19 +382,10 @@
       drawArraysFromEntityBuffer(gl, checkersBuffer, 6);
 
       const tex = menuData.selectedTexture;
-      const screenRatio = canvas.width / canvas.height;
-      const imageRatio = tex.width / tex.height;
-      const fullHeight = screenRatio >= imageRatio;
-      const targetWidth = fullHeight
-        ? (tex.width * canvas.height) / tex.height
-        : canvas.width;
-      const targetHeight = fullHeight
-        ? canvas.height
-        : (tex.height * canvas.width) / tex.width;
-      const x1 = fullHeight ? (canvas.width - canvas.height) / 2 : 0;
-      const x2 = targetWidth + x1;
-      const y1 = fullHeight ? 0 : (canvas.height - canvas.width) / 2;
-      const y2 = targetHeight + y1;
+      const x1 = menuData.textureBoundX - menuData.textureViewX;
+      const x2 = x1 + tex.width;
+      const y1 = menuData.textureBoundY - menuData.textureViewY;
+      const y2 = y1 + tex.height;
 
       gl.blendFuncSeparate(
         gl.SRC_ALPHA,
@@ -413,7 +408,14 @@
       gl.bufferData(
         gl.ARRAY_BUFFER,
         // prettier-ignore
-        new Float32Array([x1,y1,0,0,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x2,y1,1,0,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x1,y2,0,1,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x2,y1,1,0,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x2,y2,1,1,0,0,tex.width,tex.height,1,1,1,1,0,0,0,x1,y2,0,1,0,0,tex.width,tex.height,1,1,1,1,0,0,0]),
+        new Float32Array([
+          x1,y1,0,0, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x2,y1,1,0, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x1,y2,0,1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x2,y1,1,0, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x2,y2,1,1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+          x1,y2,0,1, menuData.textureBoundX,menuData.textureBoundY,menuData.textureBoundW,menuData.textureBoundH, 1,1,1,1, 0,0,0,
+        ]),
         gl.STATIC_DRAW,
       );
       const buffer: Buffer = {
@@ -1169,9 +1171,35 @@
       handleMessage(canvas, gl, event.data.content);
     }
   });
+
+  const canvasPanByMouseEvent = (e: MouseEvent) => {
+    const c = canvas!;
+    if (!(e.buttons & 1)) {
+      canvasOnMouseMove = null;
+      return;
+    }
+    const minX = menuData.textureBoundX - c.width / 2;
+    const minY = menuData.textureBoundY - c.height / 2;
+    const maxX = minX + menuData.textureBoundW;
+    const maxY = minY + menuData.textureBoundH;
+    menuData.textureViewX -= e.movementX;
+    menuData.textureViewY -= e.movementY;
+    if (menuData.textureViewX < minX) menuData.textureViewX = minX;
+    if (menuData.textureViewY < minY) menuData.textureViewY = minY;
+    if (menuData.textureViewX > maxX) menuData.textureViewX = maxX;
+    if (menuData.textureViewY > maxY) menuData.textureViewY = maxY;
+    redraw(c, gl!);
+  };
 </script>
 
-<canvas bind:this={canvas} class="absolute right-0"></canvas>
+<canvas
+  bind:this={canvas}
+  class="absolute right-0"
+  onmousedown={() => (canvasOnMouseMove = canvasPanByMouseEvent)}
+  onmouseup={() => (canvasOnMouseMove = null)}
+  onmousemove={canvasOnMouseMove}
+></canvas>
+
 {#if showMenu}
   <div
     class="overflow-auto absolute w-60 h-full left-0 top-0 m-0 p-0 bg-slate-200"

@@ -230,8 +230,15 @@
       class="hover:bg-gray-200"
       onclick={() => {
         const id = entity.textureId!;
+        const tex = menuData.textures[id];
         menuData.selectedTextureId = id.toString();
-        menuData.selectedTexture = menuData.textures[id];
+        menuData.selectedTexture = tex;
+        menuData.textureBoundX = 0;
+        menuData.textureBoundY = 0;
+        menuData.textureBoundW = tex.width;
+        menuData.textureBoundH = tex.height;
+        menuData.textureViewX = 0;
+        menuData.textureViewY = 0;
         menuData.redraw();
       }}>texture: #{entity.textureId}</button
     >
