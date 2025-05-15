@@ -400,6 +400,14 @@
         cy = ty2;
         clamped = true;
       }
+      if (menuData.textureBoundW * scale <= canvas.width) {
+        cx = tx1 + menuData.textureBoundW / 2.0;
+        clamped = true;
+      }
+      if (menuData.textureBoundH * scale <= canvas.height) {
+        cy = ty1 + menuData.textureBoundH / 2.0;
+        clamped = true;
+      }
       if (clamped) {
         menuData.textureViewX = cx - canvas.width / doubleScale;
         menuData.textureViewY = cy - canvas.height / doubleScale;
