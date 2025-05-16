@@ -82,6 +82,11 @@ export interface MenuData {
   redraw: () => void;
 }
 
+export interface Point2D {
+  x: GLfloat;
+  y: GLfloat;
+}
+
 export interface Point3D {
   x: GLfloat;
   y: GLfloat;

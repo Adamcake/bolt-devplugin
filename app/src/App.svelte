@@ -16,7 +16,7 @@
     fragmentShaderSourceCheckers,
     renderCheckersAttribs,
   } from "./shaders";
-  import type { Buffer, Model, MenuData } from "./interfaces";
+  import type { Buffer, Model, MenuData, Point2D } from "./interfaces";
   import Menu from "./Menu.svelte";
   import { v4 as randomUUID } from "uuid";
 
@@ -97,7 +97,7 @@
   let projMatrix: Float32Array;
   let done: boolean = false;
   let showMenu: boolean = false;
-  let canvasOnMouseMove: ((e: MouseEvent) => void) | null = null;
+  let canvasMousePoint: Point2D | null = null;
 
   let canvas: HTMLCanvasElement | null = null;
   let gl: WebGL2RenderingContext | null = null;
@@ -698,8 +698,8 @@
         );
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         menuData.textures[textureid] = {
           texture,
           width,
@@ -1223,9 +1223,30 @@
     }
   });
 
+  const canvasMousePointFromEvent = (e: MouseEvent) => {
+    const scale = menuData.textureViewScale / 100.0;
+    const x = Math.floor(
+      menuData.textureViewX + e.offsetX / scale - menuData.textureBoundX,
+    );
+    const y = Math.floor(
+      menuData.textureViewY + e.offsetY / scale - menuData.textureBoundY,
+    );
+    if (
+      x < 0 ||
+      y < 0 ||
+      x >= menuData.textureBoundW ||
+      y >= menuData.textureBoundH
+    ) {
+      canvasMousePoint = null;
+      return;
+    }
+    canvasMousePoint = { x, y };
+  };
+
   const canvasPanByMouseEvent = (e: MouseEvent) => {
+    canvasMousePointFromEvent(e);
     if (!(e.buttons & 1)) {
-      canvasOnMouseMove = null;
+      canvasOnMouseMove = canvasMousePointFromEvent;
       return;
     }
     const scale = menuData.textureViewScale / 100.0;
@@ -1248,13 +1269,15 @@
     menuData.textureViewY = cy - c.height / newfactor;
     redraw(c, gl!);
   };
+
+  let canvasOnMouseMove: (e: MouseEvent) => void = canvasMousePointFromEvent;
 </script>
 
 <canvas
   bind:this={canvas}
   class="absolute right-0"
   onmousedown={() => (canvasOnMouseMove = canvasPanByMouseEvent)}
-  onmouseup={() => (canvasOnMouseMove = null)}
+  onmouseup={() => (canvasOnMouseMove = canvasMousePointFromEvent)}
   onmousemove={canvasOnMouseMove}
   onwheel={canvasZoomByWheelEvent}
 ></canvas>
