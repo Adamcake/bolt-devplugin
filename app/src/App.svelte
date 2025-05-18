@@ -19,6 +19,7 @@
   import type { Buffer, Model, MenuData, Point2D } from "./interfaces";
   import Menu from "./Menu.svelte";
   import { v4 as randomUUID } from "uuid";
+  import ModalText from "./ModalText.svelte";
 
   let menuData: MenuData = {
     textures: {},
@@ -1429,16 +1430,18 @@
 {/if}
 
 {#if menuData.selectedTexture}
-  <input
-    type="image"
-    src="plugin://app/images/xmark-solid.svg"
-    class="absolute right-0 rounded-sm m-4 p-1 w-8 h-8 bg-gray-200 opacity-75 hover:opacity-100"
-    alt="close"
-    onclick={() => {
-      menuData.selectedTexture = null;
-      redraw(canvas!, gl!);
-    }}
-  />
+  {#if rgbaSelection === null}
+    <input
+      type="image"
+      src="plugin://app/images/xmark-solid.svg"
+      class="absolute right-0 rounded-sm m-4 p-1 w-8 h-8 bg-gray-200 opacity-75 hover:opacity-100"
+      alt="close"
+      onclick={() => {
+        menuData.selectedTexture = null;
+        redraw(canvas!, gl!);
+      }}
+    />
+  {/if}
   <div
     class="absolute top-1 w-full h-fit grid place-items-center pointer-events-none"
   >
@@ -1512,4 +1515,8 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if rgbaSelection !== null}
+  <ModalText bind:text={rgbaSelection} />
 {/if}
