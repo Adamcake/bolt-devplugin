@@ -26,15 +26,13 @@
     >
       Select all
     </button>
-    <button
-      class="absolute right-3 top-3 rounded-full bg-gray-300 p-[2px] shadow-lg opacity-75 hover:opacity-100"
-      onclick={() => (text = null)}
-    >
-      <img
-        src="plugin://app/images/xmark-solid.svg"
-        class="h-5 w-5"
-        alt="close"
-      />
-    </button>
   </div>
 </div>
+
+<input
+  type="image"
+  src="plugin://app/images/xmark-solid.svg"
+  class="absolute right-0 top-0 rounded-sm m-4 p-1 w-8 h-8 bg-gray-200 opacity-75 hover:opacity-100"
+  alt="close"
+  onclick={() => (text = null)}
+/>
