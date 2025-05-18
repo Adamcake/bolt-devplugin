@@ -256,6 +256,7 @@
         menuData.textureViewX = 0;
         menuData.textureViewY = 0;
         menuData.textureViewScale = 100;
+        menuData.viewIsWholeAtlas = true;
         menuData.redraw();
       }}>texture: #{entity.textureId}</button
     >
