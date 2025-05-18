@@ -2,8 +2,6 @@ local bolt = require("bolt")
 bolt.checkversion(1, 0)
 
 local cfgname = "config.ini"
-local buttonwidth = 120
-local buttonheight = 40
 local capturebuttonwindow
 local capturebuttondragminimum = 4
 local capturebuttonheld = false
@@ -80,7 +78,11 @@ local function sendviewproj (event)
   viewprojsent = true
 end
 
-capturebuttonwindow = bolt.createwindow(cfg.buttonx or 20, cfg.buttony or 20, buttonwidth, buttonheight)
+(function ()
+  local surface, width, height = bolt.createsurfacefrompng("capture")
+  capturebuttonwindow = bolt.createwindow(cfg.buttonx or 20, cfg.buttony or 20, width, height)
+  surface:drawtowindow(capturebuttonwindow, 0, 0, width, height, 0, 0, width, height)
+end)()
 
 bolt.onswapbuffers(function (event)
   if capturing then
@@ -368,7 +370,6 @@ bolt.onrenderminimap(function (event)
   capturebrowser:sendmessage(message)
 end)
 
-capturebuttonwindow:clear(252.0/255.0, 63.0/255.0, 63.0/255.0)
 capturebuttonwindow:onmousebutton(function (event)
   if event:button() ~= 1 then return end
   capturebuttonclickx, capturebuttonclicky = event:xy()
