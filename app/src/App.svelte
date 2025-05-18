@@ -32,6 +32,7 @@
     textureViewX: 0,
     textureViewY: 0,
     textureViewScale: 100,
+    viewIsWholeAtlas: false,
     redraw: () => redraw(canvas!, gl!),
   };
 
@@ -98,6 +99,33 @@
   let done: boolean = false;
   let showMenu: boolean = false;
   let canvasMousePoint: Point2D | null = null;
+
+  let rgbaRowNumber: number | null = null;
+  let rgbaColStart: number | null = null;
+  let rgbaColEnd: number | null = null;
+  let rgbaUseSubrow: boolean = false;
+  let rgbaMenuHovered: boolean = false;
+  let rgbaBox1Focused: boolean = false;
+  let rgbaBox2Focused: boolean = false;
+  let rgbaBox3Focused: boolean = false;
+  let rgbaSelection: string | null = null;
+  $: rgbaRowCopyIsDisabled =
+    rgbaRowNumber === null ||
+    (rgbaUseSubrow &&
+      (rgbaColStart === null ||
+        rgbaColEnd === null ||
+        rgbaColStart > rgbaColEnd));
+  let rgbaShowSection: boolean = false;
+  $: {
+    const b = rgbaShowSection;
+    rgbaShowSection =
+      (rgbaMenuHovered ||
+        rgbaBox1Focused ||
+        rgbaBox2Focused ||
+        rgbaBox3Focused) &&
+      !rgbaRowCopyIsDisabled;
+    if (canvas && gl && rgbaShowSection !== b) redraw(canvas, gl);
+  }
 
   let canvas: HTMLCanvasElement | null = null;
   let gl: WebGL2RenderingContext | null = null;
@@ -476,6 +504,39 @@
       };
       drawArraysFromEntityBuffer(gl, buffer, 6);
       gl.deleteBuffer(vbo);
+
+      if (rgbaShowSection) {
+        const row = rgbaRowNumber ?? 0;
+        const rowx1: number =
+          x1 + (rgbaUseSubrow && rgbaColStart ? rgbaColStart * scale : 0);
+        const rowx2: number =
+          rgbaUseSubrow && rgbaColEnd ? x1 + (rgbaColEnd + 1) * scale : x2;
+        const rowy1: number = y1 + row * scale;
+        const rowy2: number = Math.max(y1 + (row + 1) * scale, rowy1 + 1);
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          // prettier-ignore
+          new Float32Array([
+            rowx1,rowy1,0,0, 0,0,1,1, 1.0,0.15,0.15,0.4, 1,0,0,
+            rowx2,rowy1,1,0, 0,0,1,1, 1.0,0.15,0.15,0.4, 1,0,0,
+            rowx1,rowy2,0,1, 0,0,1,1, 1.0,0.15,0.15,0.4, 1,0,0,
+            rowx2,rowy1,1,0, 0,0,1,1, 1.0,0.15,0.15,0.4, 1,0,0,
+            rowx2,rowy2,1,1, 0,0,1,1, 1.0,0.15,0.15,0.4, 1,0,0,
+            rowx1,rowy2,0,1, 0,0,1,1, 1.0,0.15,0.15,0.4, 1,0,0,
+          ]),
+          gl.STATIC_DRAW,
+        );
+        const buffer: Buffer = {
+          vbo,
+          step: 60,
+          attribs: batch2dAttribs,
+        };
+        drawArraysFromEntityBuffer(gl, buffer, 6);
+        gl.deleteBuffer(vbo);
+      }
+
       return;
     }
 
@@ -1223,6 +1284,68 @@
     }
   });
 
+  const escapePixelData = (data: Uint8Array): string => {
+    return Array.from(data)
+      .map((x) => {
+        const s = x.toString(16);
+        if (s.length === 1) {
+          return "\\x0".concat(s);
+        } else {
+          return "\\x".concat(s);
+        }
+      })
+      .join("");
+  };
+
+  const copyRowPixelData = () => {
+    const tex = menuData.selectedTexture;
+    if (!tex) {
+      rgbaSelection = "error: no texture selected";
+      return;
+    }
+    if (
+      rgbaRowNumber === null ||
+      rgbaRowNumber < 0 ||
+      rgbaRowNumber >= menuData.textureBoundH
+    ) {
+      rgbaSelection = "error: selected row is out-of-bounds";
+      return;
+    }
+    const relX = rgbaUseSubrow ? rgbaColStart! : 0;
+    const x = menuData.textureBoundX + relX;
+    const y = rgbaRowNumber + menuData.textureBoundY;
+    const width = rgbaUseSubrow
+      ? rgbaColEnd! + 1 - rgbaColStart!
+      : menuData.textureBoundW;
+    if (relX < 0 || relX + width > menuData.textureBoundW) {
+      rgbaSelection = "error: selection is out-of-bounds";
+      return;
+    }
+    const startOffset = (y * tex.width + x) * 4;
+    const data = tex.data.slice(startOffset, startOffset + width * 4);
+    const str = escapePixelData(data);
+    rgbaSelection = `'${str}'`;
+  };
+
+  const copyAllPixelData = () => {
+    const tex = menuData.selectedTexture;
+    if (!tex) {
+      rgbaSelection = "error: no texture selected";
+      return;
+    }
+    const width = menuData.textureBoundW * 4;
+    const rows: Array<string> = new Array(menuData.textureBoundH);
+    for (let i = 0; i < menuData.textureBoundH; i += 1) {
+      const startOffset =
+        (menuData.textureBoundY + i) * tex.width * 4 +
+        menuData.textureBoundX * 4;
+      const data = tex.data.slice(startOffset, startOffset + width);
+      const str = escapePixelData(data);
+      rows[i] = `  [${i + 1}] = '${str}',`;
+    }
+    rgbaSelection = `local data = {\n${rows.join("\n")}\n}`;
+  };
+
   const canvasMousePointFromEvent = (e: MouseEvent) => {
     const scale = menuData.textureViewScale / 100.0;
     const x = Math.floor(
@@ -1316,4 +1439,77 @@
       redraw(canvas!, gl!);
     }}
   />
+  <div
+    class="absolute top-1 w-full h-fit grid place-items-center pointer-events-none"
+  >
+    <div
+      class="w-fit h-full rounded-lg bg-gray-100 pointer-events-auto px-2 py-1"
+    >
+      <div class="w-16 h-full table-cell">
+        x: {canvasMousePoint?.x}
+        <br />
+        y: {canvasMousePoint?.y}
+      </div>
+      <div class="w-28 h-full table-cell px-1 mx-1">
+        {menuData.textureBoundW}x{menuData.textureBoundH}
+        <br />
+        zoom: {menuData.textureViewScale}%
+      </div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="w-fit h-full table-cell px-1"
+        onmouseenter={() => (rgbaMenuHovered = true)}
+        onmouseleave={() => (rgbaMenuHovered = false)}
+      >
+        RGBA data for row:
+        <input
+          class="w-18 border border-black"
+          type="number"
+          bind:value={rgbaRowNumber}
+          onfocus={() => (rgbaBox1Focused = true)}
+          onblur={() => (rgbaBox1Focused = false)}
+          onchange={menuData.redraw}
+        />
+        <input
+          class="w-4 h-4 opacity-75 enabled:hover:opacity-100"
+          type="image"
+          src="plugin://app/images/clipboard-solid.svg"
+          alt="copy"
+          disabled={rgbaRowCopyIsDisabled}
+          onclick={copyRowPixelData}
+        />
+        <br />
+        {#if menuData.viewIsWholeAtlas}
+          <input type="checkbox" bind:checked={rgbaUseSubrow} />
+          from x:
+          <input
+            class="w-14 border border-black"
+            type="number"
+            bind:value={rgbaColStart}
+            onfocus={() => (rgbaBox2Focused = true)}
+            onblur={() => (rgbaBox2Focused = false)}
+            onchange={menuData.redraw}
+          />
+          to
+          <input
+            class="w-14 border border-black"
+            type="number"
+            bind:value={rgbaColEnd}
+            onfocus={() => (rgbaBox3Focused = true)}
+            onblur={() => (rgbaBox3Focused = false)}
+            onchange={menuData.redraw}
+          />
+        {:else}
+          RGBA data for all rows:
+          <input
+            class="w-4 h-4 opacity-75 hover:opacity-100"
+            type="image"
+            src="plugin://app/images/clipboard-solid.svg"
+            alt="copy"
+            onclick={copyAllPixelData}
+          />
+        {/if}
+      </div>
+    </div>
+  </div>
 {/if}

@@ -231,6 +231,7 @@
     menuData.textureViewX = 0;
     menuData.textureViewY = 0;
     menuData.textureViewScale = 100;
+    menuData.viewIsWholeAtlas = false;
     menuData.redraw();
   };
 </script>

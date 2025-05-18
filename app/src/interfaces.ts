@@ -79,6 +79,7 @@ export interface MenuData {
   textureViewX: number;
   textureViewY: number;
   textureViewScale: number;
+  viewIsWholeAtlas: boolean;
   redraw: () => void;
 }
 
