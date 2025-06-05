@@ -1,5 +1,6 @@
 {
   "main": "main.lua",
   "name": "Development",
-  "description": "Development tools useful for creating Bolt plugins"
+  "description": "Development tools useful for creating Bolt plugins",
+  "version": "1.0"
 }
