@@ -106,12 +106,9 @@ bolt.onswapbuffers(function (event)
       tostring(gvh)
     )
     local browser = bolt.createbrowser(windoww, windowh, url)
-    browser:showdevtools()
+    --browser:showdevtools()
     browser:oncloserequest(function ()
       browser:close()
-    end)
-    browser:onmessage(function (message)
-      print(string.format("plugin: message received: %s", message))
     end)
     capturebrowser = browser
   end
