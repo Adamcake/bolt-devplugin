@@ -12,6 +12,7 @@
     render3dAttribs,
     render3dAnimAttribs,
     renderParticlesAttribs,
+    renderBillboardAttribs,
     vertexShaderSourceCheckers,
     fragmentShaderSourceCheckers,
     renderCheckersAttribs,
@@ -1270,6 +1271,83 @@
       case 10: {
         viewMatrix = new Float32Array(message, 4, 16);
         projMatrix = new Float32Array(message, 68, 16);
+        break;
+      }
+      case 11: {
+        const vertexMsgSize = 48;
+        const vertexBufferSize = 64;
+        const vertexCount = arr.getUint32(4, true);
+        const textureId = arr.getUint32(8, true);
+        const modelMatrix = new Float32Array(16);
+        modelMatrix.set(new Float32Array(message, 16, 16));
+
+        const data = new DataView(message, 80, vertexCount * vertexMsgSize);
+        const vertices = new Array(vertexCount);
+        const bufferDataArray = new ArrayBuffer(vertexCount * vertexBufferSize);
+        const bufferData = new DataView(bufferDataArray);
+
+        for (let i = 0; i < vertexCount; i += 1) {
+          const srcOffset = vertexMsgSize * i;
+          const dstOffset = vertexBufferSize * i;
+
+          const vertex = {
+            x: data.getInt16(srcOffset, true),
+            y: data.getInt16(srcOffset + 2, true),
+            z: data.getInt16(srcOffset + 4, true),
+            offsetx: data.getFloat32(srcOffset + 8, true),
+            offsety: data.getFloat32(srcOffset + 12, true),
+            u: data.getFloat32(srcOffset + 16, true),
+            v: data.getFloat32(srcOffset + 20, true),
+            ax: data.getUint16(srcOffset + 24, true),
+            ay: data.getUint16(srcOffset + 26, true),
+            aw: data.getUint16(srcOffset + 28, true),
+            ah: data.getUint16(srcOffset + 30, true),
+            r: data.getFloat32(srcOffset + 32, true),
+            g: data.getFloat32(srcOffset + 36, true),
+            b: data.getFloat32(srcOffset + 40, true),
+            a: data.getFloat32(srcOffset + 44, true),
+          };
+          vertices[i] = vertex;
+
+          bufferData.setFloat32(dstOffset, vertex.x, true);
+          bufferData.setFloat32(dstOffset + 4, vertex.y, true);
+          bufferData.setFloat32(dstOffset + 8, vertex.z, true);
+          bufferData.setFloat32(dstOffset + 12, 0, true);
+          bufferData.setFloat32(dstOffset + 16, vertex.u, true);
+          bufferData.setFloat32(dstOffset + 20, vertex.v, true);
+          bufferData.setFloat32(dstOffset + 24, vertex.ax, true);
+          bufferData.setFloat32(dstOffset + 28, vertex.ay, true);
+          bufferData.setFloat32(dstOffset + 32, vertex.aw, true);
+          bufferData.setFloat32(dstOffset + 36, vertex.ah, true);
+          bufferData.setFloat32(dstOffset + 40, vertex.r, true);
+          bufferData.setFloat32(dstOffset + 44, vertex.g, true);
+          bufferData.setFloat32(dstOffset + 48, vertex.b, true);
+          bufferData.setFloat32(dstOffset + 52, vertex.a, true);
+          bufferData.setFloat32(dstOffset + 56, vertex.offsetx, true);
+          bufferData.setFloat32(dstOffset + 60, vertex.offsety, true);
+        }
+
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+        menuData.entities.push({
+          type: "billboard",
+          textureId,
+          vertexCount,
+          modelMatrix,
+          vertices,
+          buffer: {
+            vbo,
+            step: vertexBufferSize,
+            attribs: renderBillboardAttribs,
+          },
+          enabled: true,
+          expanded: false,
+          uuid: randomUUID(),
+          enabledVerticesList: Array(Math.floor(vertexCount)).fill(true),
+        });
+        receivedVertices += vertexCount;
+        redraw(canvas, gl);
         break;
       }
     }

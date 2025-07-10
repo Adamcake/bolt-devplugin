@@ -193,6 +193,14 @@ export const renderParticlesAttribs: Attribute[] = [
   { count: 4, offset: 12 },
 ];
 
+export const renderBillboardAttribs: Attribute[] = [
+  { count: 4, offset: 0 },
+  { count: 2, offset: 16 },
+  { count: 4, offset: 24 },
+  { count: 4, offset: 40 },
+  { count: 2, offset: 56 },
+];
+
 export const renderCheckersAttribs: Attribute[] = [{ count: 2, offset: 0 }];
 
 export const compileShader = (

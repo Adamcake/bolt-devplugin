@@ -322,6 +322,54 @@ bolt.onrenderparticles(function (event)
   capturebrowser:sendmessage(message)
 end)
 
+bolt.onrenderbillboard(function (event)
+  local vertexcount = event:vertexcount()
+  captureestimate = captureestimate + vertexcount
+  if not capturing then return end
+
+  local textureid = event:textureid()
+
+  sendtexture(event)
+  sendviewproj(event)
+
+  local vertexmsgsize = 48
+  local messagesize = 80 + (vertexcount * vertexmsgsize)
+  local message = bolt.createbuffer(messagesize)
+  message:setuint8(0, 11)
+  message:setuint32(4, vertexcount)
+  message:setuint32(8, textureid)
+  -- 4 unused bytes
+  setbuffermatrix(message, 16, event:modelmatrix())
+  local cursor = 80
+
+  for i = 1, vertexcount do
+    local x, y, z = event:vertexpoint(i):get()
+    local atlasmeta = event:vertexmeta(i)
+    local u, v = event:vertexuv(i)
+    local cr, cg, cb, ca = event:vertexcolour(i)
+    local imgx, imgy, imgw, imgh = event:atlasxywh(atlasmeta)
+    local offx, offy = event:vertexeyeoffset(i)
+    message:setint16(cursor, x)
+    message:setint16(cursor + 2, y)
+    message:setint16(cursor + 4, z)
+    -- 2 unused bytes
+    message:setfloat32(cursor + 8, offx)
+    message:setfloat32(cursor + 12, offy)
+    message:setfloat32(cursor + 16, u)
+    message:setfloat32(cursor + 20, v)
+    message:setuint16(cursor + 24, imgx)
+    message:setuint16(cursor + 26, imgy)
+    message:setuint16(cursor + 28, imgw)
+    message:setuint16(cursor + 30, imgh)
+    message:setfloat32(cursor + 32, cr)
+    message:setfloat32(cursor + 36, cg)
+    message:setfloat32(cursor + 40, cb)
+    message:setfloat32(cursor + 44, ca)
+    cursor = cursor + vertexmsgsize
+  end
+  capturebrowser:sendmessage(message)
+end)
+
 bolt.onrendericon(function (event)
   local modelcount = event:modelcount()
   for i = 1, modelcount do
