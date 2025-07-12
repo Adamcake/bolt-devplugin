@@ -661,26 +661,17 @@
           false,
           entity.modelMatrix!,
         );
-        gl.uniformMatrix4fv(
-          programBillboard_uViewMatrix,
-          false,
-          viewMatrix!,
-        );
-        gl.uniformMatrix4fv(
-          programBillboard_uProjMatrix,
-          false,
-          projMatrix!,
-        );
-        gl.uniform2fv(
-          programBillboard_uAtlasWH,
-          [tex.width, tex.height],
-        );
+        gl.uniformMatrix4fv(programBillboard_uViewMatrix, false, viewMatrix!);
+        gl.uniformMatrix4fv(programBillboard_uProjMatrix, false, projMatrix!);
+        gl.uniform2fv(programBillboard_uAtlasWH, [tex.width, tex.height]);
         gl.bindTexture(gl.TEXTURE_2D, tex.texture);
-        gl.uniform1i(
-          programBillboard_uTex,
-          textureUnitID,
+        gl.uniform1i(programBillboard_uTex, textureUnitID);
+        drawArraysFromEntityBuffer(
+          gl,
+          entity.buffer!,
+          entity.vertexCount!,
+          entity.enabledVerticesList,
         );
-        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!, entity.enabledVerticesList);
       }
     }
   };

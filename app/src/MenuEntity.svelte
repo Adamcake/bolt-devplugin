@@ -193,7 +193,11 @@
   let vertex3dCount = 0;
   let models: ModelData[] | null = null;
   let modelCount = 0;
-  if (entity.type === "batch2d" || entity.type === "minimap2d" || entity.type === "billboard") {
+  if (
+    entity.type === "batch2d" ||
+    entity.type === "minimap2d" ||
+    entity.type === "billboard"
+  ) {
     const list = [...chunksExact(entity.vertices!, verticesPerImage)];
     image2dCount = list.length;
     images2d = createSublists(
