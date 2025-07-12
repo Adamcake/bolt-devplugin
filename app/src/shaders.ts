@@ -128,7 +128,12 @@ void main() {
         in_image_xywh.p / atlas_wh.s,
         in_image_xywh.q / atlas_wh.t
     );
-    gl_Position = projmatrix * (vec4(offset2d, 0.0, 0.0) + (viewmatrix * vec4(xyz + offset3d, 1.0)));
+    mat4 eyetranslation = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        offset2d, 0.0, 1.0);
+    gl_Position = projmatrix * eyetranslation * viewmatrix * vec4(xyz + offset3d, 1.0);
 }
 `;
 
