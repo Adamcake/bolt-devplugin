@@ -15,6 +15,7 @@
     renderBillboardAttribs,
     vertexShaderSourceCheckers,
     fragmentShaderSourceCheckers,
+    vertexShaderSourceBillboard,
     renderCheckersAttribs,
   } from "./shaders";
   import type { Buffer, Model, MenuData, Point2D } from "./interfaces";
@@ -71,6 +72,13 @@
 
   let programCheckers: WebGLProgram | null = null;
   let programCheckers_uScreenWH: WebGLUniformLocation | null = null;
+
+  let programBillboard: WebGLProgram | null = null;
+  let programBillboard_uModelMatrix: WebGLUniformLocation | null = null;
+  let programBillboard_uViewMatrix: WebGLUniformLocation | null = null;
+  let programBillboard_uProjMatrix: WebGLUniformLocation | null = null;
+  let programBillboard_uAtlasWH: WebGLUniformLocation | null = null;
+  let programBillboard_uTex: WebGLUniformLocation | null = null;
 
   let checkersBuffer: Buffer | null = null;
 
@@ -135,148 +143,58 @@
     canvas.width = windoww;
     canvas.height = windowh;
     gl = canvas.getContext("webgl2");
+    // prettier-ignore
     if (gl) {
       maxAttribCount = gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
 
       whitePixelTex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, whitePixelTex);
       const texData = new Uint8Array([0xff, 0xff, 0xff, 0xff]);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        1,
-        1,
-        0,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        texData,
-      );
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, texData);
 
-      const vertexShader2d = compileShader(
-        gl,
-        gl.VERTEX_SHADER,
-        vertexShaderSource2d,
-        "2D vertex shader",
-      );
-      const fragmentShader2d = compileShader(
-        gl,
-        gl.FRAGMENT_SHADER,
-        fragmentShaderSource2d,
-        "2D fragment shader",
-      );
-      const vertexShader3d = compileShader(
-        gl,
-        gl.VERTEX_SHADER,
-        vertexShaderSource3d,
-        "3D vertex shader",
-      );
-      const vertexShaderAnim3d = compileShader(
-        gl,
-        gl.VERTEX_SHADER,
-        vertexShaderSourceAnim3d,
-        "3D anim vertex shader",
-      );
-      const fragmentShader3d = compileShader(
-        gl,
-        gl.FRAGMENT_SHADER,
-        fragmentShaderSource3d,
-        "3D fragment shader",
-      );
-      const vertexShaderParticles = compileShader(
-        gl,
-        gl.VERTEX_SHADER,
-        vertexShaderSourceParticles,
-        "particle vertex shader",
-      );
-      const vertexShaderCheckers = compileShader(
-        gl,
-        gl.VERTEX_SHADER,
-        vertexShaderSourceCheckers,
-        "checkers vertex shader",
-      );
-      const fragmentShaderCheckers = compileShader(
-        gl,
-        gl.FRAGMENT_SHADER,
-        fragmentShaderSourceCheckers,
-        "checkers fragment shader",
-      );
+      const vertexShader2d = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource2d, "2D vertex shader");
+      const fragmentShader2d = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource2d, "2D fragment shader");
+      const vertexShader3d = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource3d, "3D vertex shader");
+      const vertexShaderAnim3d = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSourceAnim3d, "3D anim vertex shader");
+      const fragmentShader3d = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource3d, "3D fragment shader");
+      const vertexShaderParticles = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSourceParticles, "particle vertex shader");
+      const vertexShaderCheckers = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSourceCheckers, "checkers vertex shader");
+      const fragmentShaderCheckers = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSourceCheckers, "checkers fragment shader");
+      const vertexShaderBillboard = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSourceBillboard, "billboard vertex shader");
 
-      program2d = linkProgram(
-        gl,
-        vertexShader2d,
-        fragmentShader2d,
-        "2D program",
-      );
-      program2d_uAtlasWHScreenWH = gl.getUniformLocation(
-        program2d,
-        "atlas_wh_screen_wh",
-      );
+      program2d = linkProgram(gl, vertexShader2d, fragmentShader2d, "2D program");
+      program2d_uAtlasWHScreenWH = gl.getUniformLocation(program2d, "atlas_wh_screen_wh");
       program2d_uTex = gl.getUniformLocation(program2d, "tex");
 
-      program3d = linkProgram(
-        gl,
-        vertexShader3d,
-        fragmentShader3d,
-        "3D program",
-      );
+      program3d = linkProgram(gl, vertexShader3d, fragmentShader3d, "3D program");
       program3d_uModelMatrix = gl.getUniformLocation(program3d, "modelmatrix");
       program3d_uViewMatrix = gl.getUniformLocation(program3d, "viewmatrix");
       program3d_uProjMatrix = gl.getUniformLocation(program3d, "projmatrix");
       program3d_uAtlasWH = gl.getUniformLocation(program3d, "atlas_wh");
       program3d_uTex = gl.getUniformLocation(program3d, "tex");
 
-      programAnim3d = linkProgram(
-        gl,
-        vertexShaderAnim3d,
-        fragmentShader3d,
-        "3D animated program",
-      );
-      programAnim3d_uModelMatrix = gl.getUniformLocation(
-        programAnim3d,
-        "modelmatrix",
-      );
-      programAnim3d_uViewMatrix = gl.getUniformLocation(
-        programAnim3d,
-        "viewmatrix",
-      );
-      programAnim3d_uProjMatrix = gl.getUniformLocation(
-        programAnim3d,
-        "projmatrix",
-      );
+      programAnim3d = linkProgram(gl, vertexShaderAnim3d, fragmentShader3d, "3D animated program");
+      programAnim3d_uModelMatrix = gl.getUniformLocation(programAnim3d, "modelmatrix");
+      programAnim3d_uViewMatrix = gl.getUniformLocation(programAnim3d, "viewmatrix");
+      programAnim3d_uProjMatrix = gl.getUniformLocation(programAnim3d, "projmatrix");
       programAnim3d_uAtlasWH = gl.getUniformLocation(programAnim3d, "atlas_wh");
       programAnim3d_uTex = gl.getUniformLocation(programAnim3d, "tex");
 
-      programParticles = linkProgram(
-        gl,
-        vertexShaderParticles,
-        fragmentShader3d,
-        "Particles program",
-      );
-      programParticles_uViewMatrix = gl.getUniformLocation(
-        programParticles,
-        "viewmatrix",
-      );
-      programParticles_uProjMatrix = gl.getUniformLocation(
-        programParticles,
-        "projmatrix",
-      );
+      programParticles = linkProgram(gl, vertexShaderParticles, fragmentShader3d, "Particles program");
+      programParticles_uViewMatrix = gl.getUniformLocation(programParticles, "viewmatrix");
+      programParticles_uProjMatrix = gl.getUniformLocation(programParticles, "projmatrix");
       programParticles_uTex = gl.getUniformLocation(programParticles, "tex");
-      programParticles_uAtlasWH = gl.getUniformLocation(
-        programParticles,
-        "atlas_wh",
-      );
+      programParticles_uAtlasWH = gl.getUniformLocation(programParticles, "atlas_wh");
 
-      programCheckers = linkProgram(
-        gl,
-        vertexShaderCheckers,
-        fragmentShaderCheckers,
-        "Checkers program",
-      );
-      programCheckers_uScreenWH = gl.getUniformLocation(
-        programCheckers,
-        "screen_wh",
-      );
+      programCheckers = linkProgram(gl, vertexShaderCheckers, fragmentShaderCheckers, "Checkers program");
+      programCheckers_uScreenWH = gl.getUniformLocation(programCheckers, "screen_wh");
+
+      programBillboard = linkProgram(gl, vertexShaderBillboard, fragmentShader3d, "Billboard program");
+      programBillboard_uModelMatrix = gl.getUniformLocation(programBillboard, "modelmatrix");
+      programBillboard_uViewMatrix = gl.getUniformLocation(programBillboard, "viewmatrix");
+      programBillboard_uProjMatrix = gl.getUniformLocation(programBillboard, "projmatrix");
+      programBillboard_uAtlasWH = gl.getUniformLocation(programBillboard, "atlas_wh");
+      programBillboard_uTex = gl.getUniformLocation(programBillboard, "tex");
 
       gl.deleteShader(vertexShader2d);
       gl.deleteShader(fragmentShader2d);
@@ -286,6 +204,7 @@
       gl.deleteShader(vertexShaderParticles);
       gl.deleteShader(vertexShaderCheckers);
       gl.deleteShader(fragmentShaderCheckers);
+      gl.deleteShader(vertexShaderBillboard);
 
       gl.activeTexture(gl.TEXTURE0 + textureUnitID);
       gl.enable(gl.SCISSOR_TEST);
@@ -724,6 +643,44 @@
         gl.bindTexture(gl.TEXTURE_2D, minimaptex);
         gl.uniform1i(program2d_uTex, textureUnitID);
         drawArraysFromEntityBuffer(gl, entity.buffer!, 6);
+      }
+
+      if (entity.type == "billboard") {
+        gl.blendFuncSeparate(
+          gl.SRC_ALPHA,
+          gl.ONE_MINUS_SRC_ALPHA,
+          gl.ONE,
+          gl.ONE_MINUS_SRC_ALPHA,
+        );
+        gl.enable(gl.DEPTH_TEST);
+        gl.useProgram(programBillboard);
+        gl.viewport(gvx, gvy, gvw, gvh);
+        const tex = menuData.textures[entity.textureId!];
+        gl.uniformMatrix4fv(
+          programBillboard_uModelMatrix,
+          false,
+          entity.modelMatrix!,
+        );
+        gl.uniformMatrix4fv(
+          programBillboard_uViewMatrix,
+          false,
+          viewMatrix!,
+        );
+        gl.uniformMatrix4fv(
+          programBillboard_uProjMatrix,
+          false,
+          projMatrix!,
+        );
+        gl.uniform2fv(
+          programBillboard_uAtlasWH,
+          [tex.width, tex.height],
+        );
+        gl.bindTexture(gl.TEXTURE_2D, tex.texture);
+        gl.uniform1i(
+          programBillboard_uTex,
+          textureUnitID,
+        );
+        drawArraysFromEntityBuffer(gl, entity.buffer!, entity.vertexCount!, entity.enabledVerticesList);
       }
     }
   };

@@ -159,6 +159,37 @@ void main() {
 }
 `;
 
+export const vertexShaderSourceBillboard = `#version 300 es
+layout (location = 0) in highp vec4 xyz_and_bone;
+layout (location = 1) in highp vec2 in_uv;
+layout (location = 2) in highp vec4 in_image_xywh;
+layout (location = 3) in highp vec4 in_rgba;
+layout (location = 4) in highp vec2 in_offset;
+out highp vec4 rgba;
+out highp vec2 uv;
+out highp vec4 image_xywh;
+uniform mat4 modelmatrix;
+uniform mat4 viewmatrix;
+uniform mat4 projmatrix;
+uniform highp vec2 atlas_wh;
+void main() {
+    rgba = in_rgba;
+    uv = in_uv;
+    image_xywh = vec4(
+        in_image_xywh.s / atlas_wh.s,
+        in_image_xywh.t / atlas_wh.t,
+        in_image_xywh.p / atlas_wh.s,
+        in_image_xywh.q / atlas_wh.t
+    );
+    mat4 eyetranslation = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        in_offset.x, in_offset.y, 0.0, 1.0);
+    gl_Position = projmatrix * eyetranslation * viewmatrix * modelmatrix * vec4(xyz_and_bone.xyz, 1.0);
+}
+`;
+
 export const batch2dAttribs: Attribute[] = [
   { count: 4, offset: 0 },
   { count: 4, offset: 16 },
