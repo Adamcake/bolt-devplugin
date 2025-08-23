@@ -96,6 +96,7 @@
   const gvy: number = getNumberParam("gy");
   const gvw: number = getNumberParam("gw");
   const gvh: number = getNumberParam("gh");
+  const gvyInv: number = windowh - (gvy + gvh);
 
   let receivedVertices: number = 0;
   let maxAttribCount: number = 0;
@@ -508,7 +509,7 @@
         gl.enable(gl.DEPTH_TEST);
         const tex = menuData.textures[entity.textureId!];
         gl.useProgram(entity.animated ? programAnim3d : program3d);
-        gl.viewport(gvx, gvy, gvw, gvh);
+        gl.viewport(gvx, gvyInv, gvw, gvh);
         gl.uniformMatrix4fv(
           entity.animated ? programAnim3d_uModelMatrix : program3d_uModelMatrix,
           false,
@@ -546,7 +547,7 @@
         gl.enable(gl.DEPTH_TEST);
         const tex = menuData.textures[entity.textureId!];
         gl.useProgram(programParticles);
-        gl.viewport(gvx, gvy, gvw, gvh);
+        gl.viewport(gvx, gvyInv, gvw, gvh);
         gl.uniformMatrix4fv(programParticles_uViewMatrix, false, viewMatrix!);
         gl.uniformMatrix4fv(programParticles_uProjMatrix, false, projMatrix!);
         gl.uniform2fv(programParticles_uAtlasWH, [tex.width, tex.height]);
@@ -654,7 +655,7 @@
         );
         gl.enable(gl.DEPTH_TEST);
         gl.useProgram(programBillboard);
-        gl.viewport(gvx, gvy, gvw, gvh);
+        gl.viewport(gvx, gvyInv, gvw, gvh);
         const tex = menuData.textures[entity.textureId!];
         gl.uniformMatrix4fv(
           programBillboard_uModelMatrix,
